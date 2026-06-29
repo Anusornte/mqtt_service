@@ -22,7 +22,7 @@ services:
         hard: 100000
 
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/broker/uptime", "-C", "1",
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "/solar/health/pub", "-m", "ping",
              "-u", "nodered", "-P", "${NODERED_MQTT_PASS}"]
       interval: 30s
       timeout: 10s
