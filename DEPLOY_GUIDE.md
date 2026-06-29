@@ -266,7 +266,7 @@ docker ps
 ```
 CONTAINER ID   IMAGE                      STATUS
 xxxxxxxxxxxx   eclipse-mosquitto:2.0.18   Up X minutes (healthy)
-xxxxxxxxxxxx   nodered/node-red:latest    Up X minutes
+xxxxxxxxxxxx   nodered/node-red:latest    Up X minutes (healthy)
 ```
 
 > Mosquitto ต้องเป็น `(healthy)` ก่อน — Node-RED จะ start หลังจากนั้น
@@ -481,7 +481,7 @@ cd /opt/solar
 git pull
 
 # restart containers รับ config ใหม่
-cd container
+cd VPS_Deploy
 docker compose down
 docker compose up -d
 ```
@@ -561,9 +561,11 @@ chmod 600 /opt/solar/VPS_Deploy/mosquitto/config/passwd
 cat /opt/solar/VPS_Deploy/.env
 
 docker exec mosquitto-solar \
-  mosquitto_sub -h localhost -t '$SYS/broker/uptime' -C 1 \
+  mosquitto_pub -h localhost -t '/solar/health/pub' -m 'ping' \
   -u nodered -P "YOUR_NODERED_PASSWORD"
 ```
+
+ถ้าไม่มี error — credentials ถูกต้อง หาก error `Not Authorised` แสดงว่า password ไม่ตรง
 
 ---
 
