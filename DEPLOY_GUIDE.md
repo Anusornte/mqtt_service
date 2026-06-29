@@ -76,25 +76,31 @@ docker ps
 ### โครงสร้างไฟล์บน VPS หลัง clone
 
 ```
-/opt/solar/                          ← git clone ลงที่นี่
-├── setup.sh                         ← รันครั้งแรกครั้งเดียว
+/opt/solar/                              ← git clone ลงที่นี่
+├── setup.sh                             ← รันครั้งแรกครั้งเดียว
 ├── DEPLOY_GUIDE.md
 │
-└── VPS_Deploy/                      ← ทำงานในโฟลเดอร์นี้
-    ├── docker-compose.yml
-    ├── .env.example                 ← template (อยู่ใน git)
-    ├── .env                         ← สร้างจาก .env.example (ไม่อยู่ใน git)
+└── VPS_Deploy/                          ← ทำงานในโฟลเดอร์นี้
+    ├── docker-compose.yml               ← อยู่ใน git
+    ├── .env.example                     ← template (อยู่ใน git)
+    ├── .env                             ← สร้างโดย setup.sh (ไม่อยู่ใน git)
     │
     ├── mosquitto/
-    │   └── config/
-    │       ├── mosquitto.conf       ← อยู่ใน git
-    │       ├── aclfile              ← อยู่ใน git
-    │       └── passwd               ← สร้างบน VPS (ไม่อยู่ใน git)
+    │   ├── config/
+    │   │   ├── mosquitto.conf           ← อยู่ใน git
+    │   │   ├── aclfile                  ← อยู่ใน git
+    │   │   └── passwd                   ← สร้างโดย setup.sh (ไม่อยู่ใน git)
+    │   ├── data/                        ← สร้างโดย setup.sh (ไม่อยู่ใน git)
+    │   └── log/                         ← สร้างโดย setup.sh (ไม่อยู่ใน git)
     │
     └── nodered/
-        ├── data/                    ← Node-RED flows (ไม่อยู่ใน git)
-        └── lib/decoders/
-            └── ti_protocol.js      ← อยู่ใน git
+        ├── data/
+        │   ├── settings.js              ← อยู่ใน git
+        │   └── flows.json               ← สร้างโดย Node-RED (ไม่อยู่ใน git)
+        └── lib/
+            └── decoders/
+                ├── index.js             ← อยู่ใน git
+                └── ti_protocol.js       ← อยู่ใน git
 ```
 
 ---
