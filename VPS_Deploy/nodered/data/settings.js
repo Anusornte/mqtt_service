@@ -5,7 +5,7 @@ module.exports = {
     flowFile: "flows.json",
     flowFilePretty: true,
 
-    credentialSecret: process.env.NODE_RED_CREDENTIAL_SECRET || "change-this-to-random-string",
+    credentialSecret: process.env.NODE_RED_CREDENTIAL_SECRET,
 
     mqttReconnectTime: 15000,
 
@@ -25,7 +25,7 @@ module.exports = {
     },
 
     contextStorage: {
-        default: "memoryOnly"
+        default: "memory"
     },
 
     functionGlobalContext: {
