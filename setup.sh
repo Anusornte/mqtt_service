@@ -7,7 +7,7 @@
 
 set -e
 
-CONTAINER_DIR="$(cd "$(dirname "$0")/container" && pwd)"
+CONTAINER_DIR="$(cd "$(dirname "$0")/VPS_Deploy" && pwd)"
 
 echo "=============================="
 echo " Solar IoT — VPS Setup"

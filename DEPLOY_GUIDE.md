@@ -20,10 +20,10 @@ cd /opt/solar
 bash setup.sh
 
 # 5. แก้ไข .env ใส่ค่าจริง
-nano container/.env
+nano VPS_Deploy/.env
 
 # 6. รัน containers
-cd container
+cd VPS_Deploy
 docker compose up -d
 
 # 7. ตรวจสอบ
@@ -80,7 +80,7 @@ docker ps
 ├── setup.sh                         ← รันครั้งแรกครั้งเดียว
 ├── DEPLOY_GUIDE.md
 │
-└── container/                       ← ทำงานในโฟลเดอร์นี้
+└── VPS_Deploy/                      ← ทำงานในโฟลเดอร์นี้
     ├── docker-compose.yml
     ├── .env.example                 ← template (อยู่ใน git)
     ├── .env                         ← สร้างจาก .env.example (ไม่อยู่ใน git)
@@ -146,7 +146,7 @@ cd /opt/solar
 
 ```bash
 ls -la
-ls -la container/
+ls -la VPS_Deploy/
 ```
 
 ---
@@ -174,7 +174,7 @@ bash /opt/solar/setup.sh
 `setup.sh` สร้าง `.env` ให้แล้ว แต่ต้องตรวจสอบ `NODERED_MQTT_PASS`:
 
 ```bash
-nano /opt/solar/container/.env
+nano /opt/solar/VPS_Deploy/.env
 ```
 
 เนื้อหาใน `.env`:
@@ -193,7 +193,7 @@ NR_CREDENTIAL_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 กำหนด permission:
 
 ```bash
-chmod 600 /opt/solar/container/.env
+chmod 600 /opt/solar/VPS_Deploy/.env
 ```
 
 ---
@@ -205,7 +205,7 @@ chmod 600 /opt/solar/container/.env
 ### ตรวจสอบว่ามี passwd แล้ว
 
 ```bash
-cat /opt/solar/container/mosquitto/config/passwd
+cat /opt/solar/VPS_Deploy/mosquitto/config/passwd
 ```
 
 ผลที่ควรได้:
@@ -217,7 +217,7 @@ nodered:$7$101$...hashed...
 ### สร้างใหม่ (ถ้ายังไม่มี)
 
 ```bash
-PASSWD=/opt/solar/container/mosquitto/config/passwd
+PASSWD=/opt/solar/VPS_Deploy/mosquitto/config/passwd
 touch $PASSWD && chmod 600 $PASSWD
 
 # Device user (HARDCODED — ห้ามเปลี่ยน)
@@ -234,7 +234,7 @@ docker run --rm -v $PASSWD:/passwd eclipse-mosquitto:2.0.18 \
 ## 8. เริ่มระบบ
 
 ```bash
-cd /opt/solar/container
+cd /opt/solar/VPS_Deploy
 docker compose up -d
 ```
 
@@ -428,9 +428,9 @@ DATE=$(date +%Y%m%d_%H%M%S)
 mkdir -p "$BACKUP_DIR"
 
 tar -czf "$BACKUP_DIR/solar-$DATE.tar.gz" \
-  /opt/solar/container/mosquitto/config \
-  /opt/solar/container/nodered/data \
-  /opt/solar/container/.env
+  /opt/solar/VPS_Deploy/mosquitto/config \
+  /opt/solar/VPS_Deploy/nodered/data \
+  /opt/solar/VPS_Deploy/.env
 
 echo "Backup: solar-$DATE.tar.gz ($(du -sh $BACKUP_DIR/solar-$DATE.tar.gz | cut -f1))"
 find "$BACKUP_DIR" -name "solar-*.tar.gz" -mtime +30 -delete
@@ -454,11 +454,11 @@ crontab -e
 ### Restore
 
 ```bash
-cd /opt/solar/container
+cd /opt/solar/VPS_Deploy
 docker compose down
 tar -xzf /root/backups/solar-YYYYMMDD_HHMMSS.tar.gz -C /
-chown -R 1883:1883 /opt/solar/container/mosquitto/data
-chown -R 1000:1000 /opt/solar/container/nodered/data
+chown -R 1883:1883 /opt/solar/VPS_Deploy/mosquitto/data
+chown -R 1000:1000 /opt/solar/VPS_Deploy/nodered/data
 docker compose up -d
 ```
 
@@ -486,7 +486,7 @@ docker compose up -d
 
 ## 15. คำสั่งที่ใช้บ่อย
 
-### Docker Compose (รันจาก `/opt/solar/container/`)
+### Docker Compose (รันจาก `/opt/solar/VPS_Deploy/`)
 
 | คำสั่ง | คำอธิบาย |
 |--------|----------|
@@ -527,7 +527,7 @@ docker exec mosquitto-solar \
 ### Container ไม่ Start
 
 ```bash
-cd /opt/solar/container
+cd /opt/solar/VPS_Deploy
 docker compose logs
 ```
 
@@ -536,13 +536,13 @@ docker compose logs
 ### Mosquitto: `Error: Unable to open pwfile`
 
 ```bash
-ls -la /opt/solar/container/mosquitto/config/passwd
+ls -la /opt/solar/VPS_Deploy/mosquitto/config/passwd
 ```
 
 ถ้าไม่มี:
 ```bash
-touch /opt/solar/container/mosquitto/config/passwd
-chmod 600 /opt/solar/container/mosquitto/config/passwd
+touch /opt/solar/VPS_Deploy/mosquitto/config/passwd
+chmod 600 /opt/solar/VPS_Deploy/mosquitto/config/passwd
 ```
 
 ---
@@ -552,7 +552,7 @@ chmod 600 /opt/solar/container/mosquitto/config/passwd
 ตรวจสอบว่า `NODERED_MQTT_PASS` ใน `.env` ตรงกับ `passwd`:
 
 ```bash
-cat /opt/solar/container/.env
+cat /opt/solar/VPS_Deploy/.env
 
 docker exec mosquitto-solar \
   mosquitto_sub -h localhost -t '$SYS/broker/uptime' -C 1 \
