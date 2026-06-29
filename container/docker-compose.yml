@@ -1,7 +1,8 @@
 services:
+
   # ===== Container 1: Mosquitto MQTT Broker =====
   mosquitto:
-    image: eclipse-mosquitto:latest
+    image: eclipse-mosquitto:2.0.18
     container_name: mosquitto-solar
     restart: unless-stopped
     hostname: mosquitto-solar
@@ -11,9 +12,9 @@ services:
       - "9001:9001"     # MQTT WebSocket (website)
 
     volumes:
-      - ./mosquitto/config:/mosquitto/config:ro
-      - ./mosquitto/data:/mosquitto/data:rw
-      - ./mosquitto/log:/mosquitto/log:rw
+      - ./config:/mosquitto/config:ro
+      - ./data:/mosquitto/data:rw
+      - ./log:/mosquitto/log:rw
 
     ulimits:
       nofile:
@@ -21,11 +22,12 @@ services:
         hard: 100000
 
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/broker/uptime", "-C", "1"]
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/broker/uptime", "-C", "1",
+             "-u", "nodered", "-P", "${NODERED_MQTT_PASS}"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
     networks:
       - iot-net
@@ -46,31 +48,11 @@ services:
 
     environment:
       - TZ=Asia/Bangkok
-      - NODE_RED_CREDENTIAL_SECRET=change-this-to-random-string
+      - NODE_RED_CREDENTIAL_SECRET=${NR_CREDENTIAL_SECRET}
 
     depends_on:
       mosquitto:
         condition: service_healthy
-
-    networks:
-      - iot-net
-
-  # ===== Container 3: Website (Frontend) =====
-  website:
-    image: nginx:alpine
-    container_name: website-solar
-    restart: unless-stopped
-
-    ports:
-      - "80:80"         # HTTP
-      - "3000:3000"     # Web App
-
-    volumes:
-      - ./website:/usr/share/nginx/html:ro
-
-    depends_on:
-      - mosquitto
-      - nodered
 
     networks:
       - iot-net

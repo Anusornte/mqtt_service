@@ -1,20 +1,6 @@
-/**
- * TI& Protocol Decoder — equipment2596
- * ถอดรหัส Binary Payload จาก NJ-iot401 → Solar Telemetry
- *
- * Protocol: TI& (0x54492606)
- * Source:   NJ-iot401_MQTT_Binary_Decoder.md
- */
-
 const V_SCALE = 170.7;
 
-/**
- * Decode TI& binary protocol payload
- * @param {Buffer|Uint8Array} data - Raw binary payload
- * @returns {Object} Decoded telemetry values
- */
 function decodeTIProtocol(data) {
-    // Validate header
     if (data.length < 15) {
         return { type: "error", reason: "payload_too_short", length: data.length };
     }
@@ -26,7 +12,6 @@ function decodeTIProtocol(data) {
 
     const msgType = data[13];
 
-    // Short status (type=16) — no telemetry data
     if (msgType !== 4 || data.length < 56) {
         return {
             type: "short_status",
@@ -35,7 +20,6 @@ function decodeTIProtocol(data) {
         };
     }
 
-    // Full telemetry (type=4, 56+ bytes)
     return {
         type: "full_telemetry",
         solar_voltage_v:   ((data[15] << 8) | data[16]) / V_SCALE,
@@ -47,14 +31,8 @@ function decodeTIProtocol(data) {
     };
 }
 
-/**
- * Extract EMEI from MQTT topic
- * @param {string} topic - MQTT topic e.g. "/solar/864865083327800/pub"
- * @returns {string|null} EMEI
- */
 function extractEMEI(topic) {
     const parts = topic.split("/");
-    // topic format: /solar/{EMEI}/pub or /solar/{EMEI}/sub
     return parts.length >= 3 ? parts[2] : null;
 }
 
