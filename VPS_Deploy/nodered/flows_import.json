@@ -4,8 +4,9 @@
         "type": "tab",
         "label": "Solar MQTT Decoder",
         "disabled": false,
-        "info": "รับ MQTT binary จาก NJ-iot401 devices แล้ว decode TI& Protocol"
+        "info": "รับ MQTT binary จาก NJ-iot401 devices → decode TI& Protocol → structured JSON"
     },
+
     {
         "id": "mqtt_in_solar",
         "type": "mqtt in",
@@ -19,31 +20,33 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 160,
-        "y": 160,
-        "wires": [["fn_decode_binary"]]
+        "x": 150,
+        "y": 180,
+        "wires": [["fn_decode"]]
     },
+
     {
-        "id": "fn_decode_binary",
+        "id": "fn_decode",
         "type": "function",
         "z": "tab_solar_decoder",
         "name": "Decode TI& Binary",
-        "func": "const { decodeTIProtocol, extractEMEI } = global.get('decoders');\n\nconst buf = msg.payload;\nconst emei = extractEMEI(msg.topic);\n\nif (!Buffer.isBuffer(buf)) {\n    node.warn(`[${emei}] payload ไม่ใช่ Buffer: ${typeof buf}`);\n    return null;\n}\n\nconst decoded = decodeTIProtocol(buf);\n\nmsg.emei = emei;\nmsg.payload = {\n    emei,\n    timestamp: new Date().toISOString(),\n    topic: msg.topic,\n    ...decoded\n};\n\nnode.status({\n    fill: decoded.type === 'full_telemetry' ? 'green' : decoded.type === 'error' ? 'red' : 'yellow',\n    shape: 'dot',\n    text: `${emei} → ${decoded.type}`\n});\n\nreturn msg;",
+        "func": "// Device Registry\nconst DEVICES = {\n    '864865083327800': 'device-01',\n    '867920075008640': 'device-02',\n    '864865083329673': 'equipment2596'\n};\n\nconst { decodeTIProtocol, extractEMEI } = global.get('decoders');\nconst buf = msg.payload;\nconst emei = extractEMEI(msg.topic);\nconst deviceName = DEVICES[emei] || emei;\n\nif (!Buffer.isBuffer(buf)) {\n    node.warn(`[${deviceName}] payload is not Buffer`);\n    return null;\n}\n\nconst decoded = decodeTIProtocol(buf);\n\nconst STATUS_COLOR = {\n    full_telemetry: 'green',\n    short_status:   'yellow',\n    error:          'red'\n};\n\nnode.status({\n    fill:  STATUS_COLOR[decoded.type] || 'grey',\n    shape: 'dot',\n    text:  `${deviceName} | ${decoded.type} | ${buf.length}B`\n});\n\nmsg.emei        = emei;\nmsg.device_name = deviceName;\nmsg.payload     = { emei, device_name: deviceName, ts: new Date().toISOString(), ...decoded };\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 390,
-        "y": 160,
-        "wires": [["sw_msg_type"]]
+        "x": 370,
+        "y": 180,
+        "wires": [["sw_type"]]
     },
+
     {
-        "id": "sw_msg_type",
+        "id": "sw_type",
         "type": "switch",
         "z": "tab_solar_decoder",
-        "name": "Type?",
+        "name": "msg type?",
         "property": "payload.type",
         "propertyType": "msg",
         "rules": [
@@ -54,16 +57,17 @@
         "checkall": "false",
         "repair": false,
         "outputs": 3,
-        "x": 610,
-        "y": 160,
+        "x": 580,
+        "y": 180,
         "wires": [
-            ["debug_full_telemetry"],
-            ["debug_short_status"],
+            ["debug_full", "debug_raw"],
+            ["debug_short"],
             ["debug_error"]
         ]
     },
+
     {
-        "id": "debug_full_telemetry",
+        "id": "debug_full",
         "type": "debug",
         "z": "tab_solar_decoder",
         "name": "Full Telemetry",
@@ -73,17 +77,36 @@
         "tostatus": true,
         "complete": "payload",
         "targetType": "msg",
-        "statusVal": "payload.battery_voltage_v",
+        "statusVal": "payload.battery.voltage_v",
         "statusType": "msg",
-        "x": 830,
+        "x": 820,
         "y": 100,
         "wires": []
     },
+
     {
-        "id": "debug_short_status",
+        "id": "debug_raw",
         "type": "debug",
         "z": "tab_solar_decoder",
-        "name": "Short Status",
+        "name": "Raw Hex (calibration)",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload.raw",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 840,
+        "y": 160,
+        "wires": []
+    },
+
+    {
+        "id": "debug_short",
+        "type": "debug",
+        "z": "tab_solar_decoder",
+        "name": "Short Status (21B)",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -92,15 +115,16 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 830,
-        "y": 160,
+        "x": 820,
+        "y": 220,
         "wires": []
     },
+
     {
         "id": "debug_error",
         "type": "debug",
         "z": "tab_solar_decoder",
-        "name": "Decode Error",
+        "name": "Header / Size Error",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -109,10 +133,11 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 830,
-        "y": 220,
+        "x": 820,
+        "y": 280,
         "wires": []
     },
+
     {
         "id": "broker_mosquitto_solar",
         "type": "mqtt-broker",

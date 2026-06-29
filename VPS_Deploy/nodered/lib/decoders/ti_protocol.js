@@ -5,9 +5,12 @@ function decodeTIProtocol(data) {
         return { type: "error", reason: "payload_too_short", length: data.length };
     }
 
-    const header = String.fromCharCode(data[0], data[1], data[2], data[3]);
-    if (header !== "TI&\x06") {
-        return { type: "error", reason: "invalid_header", header };
+    if (data[0] !== 0x54 || data[1] !== 0x49 || data[2] !== 0x26 || data[3] !== 0x06) {
+        return {
+            type: "error",
+            reason: "invalid_header",
+            header: Buffer.from(data.slice(0, 4)).toString("hex")
+        };
     }
 
     const msgType = data[13];
@@ -16,18 +19,43 @@ function decodeTIProtocol(data) {
         return {
             type: "short_status",
             msgType,
+            length: data.length,
             raw: Buffer.from(data).toString("hex")
         };
     }
 
+    function be16(i) { return (data[i] << 8) | data[i + 1]; }
+    function toV(raw) { return Math.round(raw / V_SCALE * 100) / 100; }
+
     return {
         type: "full_telemetry",
-        solar_voltage_v:   ((data[15] << 8) | data[16]) / V_SCALE,
-        battery_voltage_v: ((data[17] << 8) | data[18]) / V_SCALE,
-        load_voltage_v:    ((data[19] << 8) | data[20]) / V_SCALE,
-        daily_discharge:   data[32],
-        daily_charge:      data[36],
-        raw:               Buffer.from(data).toString("hex")
+        solar: {
+            voltage_v:  toV(be16(15)),   // ✅ confirmed
+            current_a:  null,            // ❌ TBD
+            power_w:    null             // = V × A
+        },
+        battery: {
+            voltage_v:  toV(be16(17)),   // ✅ confirmed
+            current_a:  null,            // ❌ TBD
+            power_w:    null,
+            soc_pct:    null             // ❌ TBD
+        },
+        load: {
+            voltage_v:  toV(be16(19)),   // ✅ confirmed
+            current_a:  null,            // ❌ TBD
+            power_w:    null,
+            state:      null             // ❌ TBD
+        },
+        daily: {
+            discharge:  data[32],        // ✅ confirmed
+            charge:     data[36]         // ✅ confirmed
+        },
+        temperature: {
+            equipment_c: null,           // ❌ TBD
+            ambient_c:   null            // ❌ TBD
+        },
+        crc_raw: Buffer.from(data.slice(54, 56)).toString("hex"),
+        raw: Buffer.from(data).toString("hex")
     };
 }
 
