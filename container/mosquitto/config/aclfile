@@ -1,0 +1,25 @@
+# ============================================
+# ACL — Solar Device — 3 หมวด
+# หมวด 1: Device — publish/subscribe ของตัวเอง
+# หมวด 2: Node-RED — subscribe ทั้งหมด + write สำหรับทดสอบ
+# หมวด 3: Website — subscribe + publish command
+# ============================================
+
+# ===== หมวด 1: DEVICE =====
+# %c = ClientID (= EMEI device identifier)
+# %u = Username (= Solarstreetlight, shared)
+
+pattern write /solar/%c/pub
+pattern read /solar/%c/sub
+
+# ===== หมวด 2: NODE-RED =====
+# มี write เพื่อใช้ทดสอบระบบ (publish คำสั่ง simulate device)
+user nodered
+topic read /solar/+/pub
+topic write /solar/+/pub
+topic write /solar/+/sub
+
+# ===== หมวด 3: WEBSITE =====
+user website
+topic read /solar/+/pub
+topic write /solar/+/sub

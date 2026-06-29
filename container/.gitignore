@@ -1,0 +1,15 @@
+# Mosquitto — runtime data (created on VPS)
+mosquitto/data/
+mosquitto/log/
+
+# Mosquitto — passwd (contains credentials, created on VPS)
+mosquitto/config/passwd
+
+# Node-RED — flow auto-save
+nodered/data/flows.json
+nodered/data/flows_cred.json
+nodered/data/package.json
+nodered/data/node_modules/
+
+# Website (created on VPS)
+website/
