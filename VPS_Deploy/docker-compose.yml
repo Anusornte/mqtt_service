@@ -1,0 +1,62 @@
+services:
+
+  # ===== Container 1: Mosquitto MQTT Broker =====
+  mosquitto:
+    image: eclipse-mosquitto:2.0.18
+    container_name: mosquitto-solar
+    restart: unless-stopped
+    hostname: mosquitto-solar
+
+    ports:
+      - "1883:1883"     # MQTT TCP (devices + Node-RED)
+      - "9001:9001"     # MQTT WebSocket (website)
+
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - ./mosquitto/data:/mosquitto/data:rw
+      - ./mosquitto/log:/mosquitto/log:rw
+
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/broker/uptime", "-C", "1",
+             "-u", "nodered", "-P", "${NODERED_MQTT_PASS}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    networks:
+      - iot-net
+
+  # ===== Container 2: Node-RED =====
+  nodered:
+    image: nodered/node-red:latest
+    container_name: nodered-solar
+    restart: unless-stopped
+    hostname: nodered-solar
+
+    ports:
+      - "1880:1880"     # Node-RED Editor UI
+
+    volumes:
+      - ./nodered/data:/data
+      - ./nodered/lib/decoders:/data/decoders
+
+    environment:
+      - TZ=Asia/Bangkok
+      - NODE_RED_CREDENTIAL_SECRET=${NR_CREDENTIAL_SECRET}
+
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+    networks:
+      - iot-net
+
+networks:
+  iot-net:
+    driver: bridge
