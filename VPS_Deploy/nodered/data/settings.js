@@ -24,10 +24,6 @@ module.exports = {
         }
     },
 
-    contextStorage: {
-        default: "memory"
-    },
-
     functionGlobalContext: {
         decoders: require("./decoders")
     }
