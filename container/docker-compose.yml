@@ -12,9 +12,9 @@ services:
       - "9001:9001"     # MQTT WebSocket (website)
 
     volumes:
-      - ./config:/mosquitto/config:ro
-      - ./data:/mosquitto/data:rw
-      - ./log:/mosquitto/log:rw
+      - ./mosquitto/config:/mosquitto/config:ro
+      - ./mosquitto/data:/mosquitto/data:rw
+      - ./mosquitto/log:/mosquitto/log:rw
 
     ulimits:
       nofile:
