@@ -701,4 +701,4 @@ function exploreBytes(buf) {
     };
 }
 
-module.exports = { exploreBytes, BYTE_MAP };
+module.exports = { exploreBytes, BYTE_MAP, ntc100K_3950, formula_ambTemp };

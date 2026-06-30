@@ -8,11 +8,11 @@ const {
     parseNJResponse, parseLampStatus, parseAlarm,
     parseOnline, parseSolar0xB4,
 } = require("./parser");
-const { exploreBytes, BYTE_MAP } = require("./byte_explorer");
+const { exploreBytes, BYTE_MAP, ntc100K_3950, formula_ambTemp } = require("./byte_explorer");
 
 module.exports = {
     // Byte explorer
-    exploreBytes, BYTE_MAP,
+    exploreBytes, BYTE_MAP, ntc100K_3950, formula_ambTemp,
     // TI Protocol
     decodeTIProtocol, extractEMEI, V_SCALE,
     // Modbus
