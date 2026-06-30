@@ -15,7 +15,15 @@ function ascii(b)      { return (b >= 0x20 && b <= 0x7E) ? String.fromCharCode(b
 // ── Calibration formulas (parser_Encoder.md) ─────────────────
 
 function formula_pvV(raw)      { return +(raw * 0.005592 + 1.2067).toFixed(2); }   // R²=0.99  MAE=0.17V
-function formula_ambTemp(raw)  { return +(raw * 0.064121 - 105.8627).toFixed(1); } // R²=0.82  MAE=2.8°C
+// NTC 100K B=3950 thermistor — 12-bit ADC, Rfix=100K
+function ntc100K_3950(raw) {
+    const ADCmax = 4096, Rfix = 100000, R0 = 100000, B = 3950, T0 = 298.15;
+    const Rntc = Rfix * (ADCmax / raw - 1);
+    if (Rntc <= 0) return 99.9;
+    const Tk = 1 / (1/T0 + Math.log(Rntc/R0)/B);
+    return +(Tk - 273.15).toFixed(1);
+}
+function formula_ambTemp(raw)  { return ntc100K_3950(raw); }              // NTC 100K B=3950
 function formula_batA(stg)     { return +(stg / 408).toFixed(2); }                 // recalibrated 2026-06-30, error<0.01A
 function formula_pvA(stg)      { return +(stg / 540).toFixed(2); }                 // recalibrated 2026-06-30, error<0.03A
 function formula_batW(stg, batV) { return +((stg / 408) * (batV || 13.4)).toFixed(1); }  // batA × batV

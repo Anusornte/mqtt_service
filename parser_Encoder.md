@@ -982,7 +982,7 @@ Off   Size  Field                       Status   How Verified
 12      1   Sequence counter             △         increments each msg
 13      1   Packet Length Indicator      ✅        0x04=Full 56B, 0x10=Short ACK 21B
 14-15   2   PV Voltage (u16 LE)          ✅        raw×0.005592+1.2067 (R²=0.99)
-16-17   2   Temperature (u16 LE)         ❌        non-linear — NTC? formula breaks >30°C
+16-17   2   Temperature (u16 LE)         △         🆕 NTC 100K B=3950, 12-bit ADC, Rfix≈100K
 18-19   2   Load Voltage? (u16 LE)       △         changes ON/OFF: ~230→7414→104
 20-21   2   Load Current (u16 LE, mA)    ✅        0=OFF, 314=ON — cloud cmd diff
 22-23   2   Charge Stage (u16 LE)        ✅        0=idle, 193=discharge, 256=float, 512+=charge
@@ -1022,8 +1022,10 @@ batV = estimateBatV_LiFePO4(chargeStage, dailyChargeWh, socByte)
 // Load Current — confirmed via cloud ON/OFF diff
 loadCurrent_mA = u16le(20)  // 0=OFF, >0=ON
 
-// Temperature — ❌ BROKEN (non-linear above 30°C)
-equipTemp = u16le(16) * 0.064121 - 105.8627
+// Temperature — 🆕 NTC 100K B=3950 thermistor (2026-06-30)
+// Rntc = 100000 * (4096/raw - 1)
+// T(K) = 1 / (1/298.15 + ln(Rntc/100000)/3950)
+equipTemp = ntc100K_3950(u16le(16))   // 🆕 NTC 100K B=3950, Rfix=100K, 12-bit ADC
 ```
 
 ---
