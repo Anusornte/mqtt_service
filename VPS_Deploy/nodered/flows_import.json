@@ -630,5 +630,326 @@
         "x": 130,
         "y": 400,
         "wires": []
+    },
+    {
+        "id": "inj_devlist",
+        "type": "inject",
+        "z": "tab_rest_api",
+        "name": "📋 Device List",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payloadType": "str",
+        "x": 130,
+        "y": 480,
+        "wires": [
+            [
+                "fn_devlist_tok"
+            ]
+        ]
+    },
+    {
+        "id": "fn_devlist_tok",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "① Get Token",
+        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded'};\nmsg.payload='username=anusorn&password=123456';\nmsg.url='http://xmnengjia.com/sdLamp/api/external/accessToken';\nreturn msg;",
+        "outputs": 1,
+        "x": 330,
+        "y": 480,
+        "wires": [
+            [
+                "http_devlist_tok"
+            ]
+        ]
+    },
+    {
+        "id": "http_devlist_tok",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST token",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 530,
+        "y": 480,
+        "wires": [
+            [
+                "fn_devlist_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "fn_devlist_cmd",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "② Build List",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){node.warn('Token fail');return null;}\nconst tk=d.data;\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify({accessToken:tk,pageNumber:1,pageSize:20});\nmsg.url='http://xmnengjia.com/sdLamp/api/external/deviceList';\nreturn msg;",
+        "outputs": 1,
+        "x": 730,
+        "y": 480,
+        "wires": [
+            [
+                "http_devlist"
+            ]
+        ]
+    },
+    {
+        "id": "http_devlist",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST /deviceList",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 930,
+        "y": 480,
+        "wires": [
+            [
+                "fn_devlist_parse"
+            ]
+        ]
+    },
+    {
+        "id": "fn_devlist_parse",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "③ Parse",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){msg.payload={error:d?.code};return msg;}\nconst list=(d.data?.list||[]).map(dev=>({serial:dev.serial,online:dev.is_online===1,signal:dev.signal_strength,lat:dev.latitude,lng:dev.longitude}));\nmsg.payload={total:d.data?.total||list.length,devices:list};\nnode.status({fill:'green',shape:'dot',text:list.filter(d=>d.online).length+'/'+list.length+' online'});\nreturn msg;",
+        "outputs": 1,
+        "x": 1130,
+        "y": 480,
+        "wires": [
+            [
+                "debug_devlist"
+            ]
+        ]
+    },
+    {
+        "id": "debug_devlist",
+        "type": "debug",
+        "z": "tab_rest_api",
+        "name": "📋 Devices",
+        "active": true,
+        "complete": "payload",
+        "x": 1330,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "inj_getparams",
+        "type": "inject",
+        "z": "tab_rest_api",
+        "name": "🔧 Get Params",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payloadType": "str",
+        "x": 130,
+        "y": 560,
+        "wires": [
+            [
+                "fn_getp_tok"
+            ]
+        ]
+    },
+    {
+        "id": "fn_getp_tok",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "① Get Token",
+        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded'};\nmsg.payload='username=anusorn&password=123456';\nmsg.url='http://xmnengjia.com/sdLamp/api/external/accessToken';\nreturn msg;",
+        "outputs": 1,
+        "x": 330,
+        "y": 560,
+        "wires": [
+            [
+                "http_getp_tok"
+            ]
+        ]
+    },
+    {
+        "id": "http_getp_tok",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST token",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 530,
+        "y": 560,
+        "wires": [
+            [
+                "fn_getp_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "fn_getp_cmd",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "② Build GetParams",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){node.warn('Token fail');return null;}\nconst tk=d.data;\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify({accessToken:tk,serial:'njfJ4FhLDCiZzZbB2025050857732596'});\nmsg.url='http://xmnengjia.com/sdLamp/api/external/getDeviceParams';\nreturn msg;",
+        "outputs": 1,
+        "x": 730,
+        "y": 560,
+        "wires": [
+            [
+                "http_getparams"
+            ]
+        ]
+    },
+    {
+        "id": "http_getparams",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST /getDeviceParams",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 930,
+        "y": 560,
+        "wires": [
+            [
+                "fn_getp_parse"
+            ]
+        ]
+    },
+    {
+        "id": "fn_getp_parse",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "③ Parse",
+        "func": "const d=msg.payload; if(!d||d.code!==10000){msg.payload={error:d?.code,msg:d?.msg};return msg;}\nmsg.payload=d.data;\nnode.status({fill:'green',shape:'dot',text:'Params OK'});\nreturn msg;",
+        "outputs": 1,
+        "x": 1130,
+        "y": 560,
+        "wires": [
+            [
+                "debug_getparams"
+            ]
+        ]
+    },
+    {
+        "id": "debug_getparams",
+        "type": "debug",
+        "z": "tab_rest_api",
+        "name": "🔧 Params",
+        "active": true,
+        "complete": "payload",
+        "x": 1330,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "inj_distparam",
+        "type": "inject",
+        "z": "tab_rest_api",
+        "name": "⚙ Push Params",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payloadType": "str",
+        "x": 130,
+        "y": 640,
+        "wires": [
+            [
+                "fn_distp_tok"
+            ]
+        ]
+    },
+    {
+        "id": "fn_distp_tok",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "① Get Token",
+        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded'};\nmsg.payload='username=anusorn&password=123456';\nmsg.url='http://xmnengjia.com/sdLamp/api/external/accessToken';\nreturn msg;",
+        "outputs": 1,
+        "x": 330,
+        "y": 640,
+        "wires": [
+            [
+                "http_distp_tok"
+            ]
+        ]
+    },
+    {
+        "id": "http_distp_tok",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST token",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 530,
+        "y": 640,
+        "wires": [
+            [
+                "fn_distp_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "fn_distp_cmd",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "② Build Push",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){node.warn('Token fail');return null;}\nconst tk=d.data;\nconst params={\n  producer:2, overchargeVoltage:2.6, overchargeReturnVoltage:3.0,\n  dischargeVoltage:3.6, dischargeReturnVoltage:3.4, batteryNumber:1,\n  loadCurrent: msg.loadA || 1.33, intelligent: msg.eco || 2,\n  batteryType: msg.batType || 1, workPattern: msg.workMode || 0,\n  timeBrightness: msg.schedule || [{h:1,s:0,d:'100'}]\n};\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify(params);\nmsg.url='http://xmnengjia.com/sdLamp/api/external/distributeParam?accessToken='+encodeURIComponent(tk)+'&serial=njfJ4FhLDCiZzZbB2025050857732596';\nnode.status({fill:'blue',shape:'dot',text:'PUSH PARAMS'});\nreturn msg;",
+        "outputs": 1,
+        "x": 730,
+        "y": 640,
+        "wires": [
+            [
+                "http_distparam"
+            ]
+        ]
+    },
+    {
+        "id": "http_distparam",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST /distributeParam",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 930,
+        "y": 640,
+        "wires": [
+            [
+                "fn_distp_parse"
+            ]
+        ]
+    },
+    {
+        "id": "fn_distp_parse",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "③ Parse",
+        "func": "const d=msg.payload; const OK=[1000,1001,10000];\nmsg.payload={ok:!!d&&OK.includes(d.code),code:d?.code,msg:d?.msg||'?'};\nnode.status({fill:msg.payload.ok?'green':'red',shape:'dot',text:msg.payload.ok?'OK':'ERR '+d?.code});\nreturn msg;",
+        "outputs": 1,
+        "x": 1130,
+        "y": 640,
+        "wires": [
+            [
+                "debug_distparam"
+            ]
+        ]
+    },
+    {
+        "id": "debug_distparam",
+        "type": "debug",
+        "z": "tab_rest_api",
+        "name": "⚙ PushResult",
+        "active": true,
+        "complete": "payload",
+        "x": 1330,
+        "y": 640,
+        "wires": []
     }
 ]
