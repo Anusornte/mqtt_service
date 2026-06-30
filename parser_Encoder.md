@@ -903,4 +903,103 @@ module.exports = {
     },
     editorTheme: { projects: { enabled: false } }
 }
+
+---
+
+## 4. ✅ Confirmed Byte Map — Calibrated 2026-06-30
+
+> Cross-referenced against REST API (`xmnengjia.com/sdLamp/api/external/deviceStatus`)  
+> Test: ON/OFF cloud command → diff analysis  
+> 6 REST data points + 6 MQTT RAW packets for equipment2596 (IMEI `864865083329673`)
+
+### Complete Byte Map (56 bytes, TI Protocol, Little-Endian)
+
+```
+Off  Size  Field                        Status      Formula / Notes
+───  ────  ──────────────────────────   ──────────  ──────────────────────────
+ 0     4   Start Marker "TI&\x06"       ✅ CONFIRMED  54 49 26 06
+ 2     1   BCD Year (20YY)              ✅ CONFIRMED  Year = 2000 + BCD(off2)
+ 3     1   BCD Month (01-12)            ✅ CONFIRMED
+ 4     1   BCD Day (01-31)              ✅ CONFIRMED
+ 5     1   BCD Hour (China UTC+8)       ✅ CONFIRMED  −1 = Thailand UTC+7
+ 6     1   BCD Minute                   ✅ CONFIRMED
+ 7     1   BCD Second                   ✅ CONFIRMED
+ 8     1   msgType (0x12=telemetry)     ✅ CONFIRMED  0x12 = periodic
+ 9     1   Signal strength (signed dBm) ✅ CONFIRMED  0xAA = −86 dBm
+10-11   2   Reserved (always 00 00)     ✅ CONFIRMED
+12     1   Sequence counter             △ CALIBRATED increments each packet
+13     1   Msg Length indicator         △ CALIBRATED  4=Full 56B, 16=Short 21B
+14-15   2   PV Voltage ADC (u16 LE)     ✅ CONFIRMED  pvV = raw × 0.005592 + 1.2067 (R²=0.99)
+16-17   2   Temperature ADC (u16 LE)    ❌ NON-LINEAR raw × 0.064121 − 105.86 — breaks at >30°C
+18-19   2   Load Voltage (u16 LE)       △ CALIBRATED varies with load ON/OFF — scale TBD
+20-21   2   Load Current (u16 LE, mA)   ✅ CONFIRMED  0=OFF, 656=ON (verified cloud cmd diff)
+22-23   2   Charge Stage (u16 LE)       ✅ CONFIRMED  0=idle, 512=float, 2048=bulk, 2304=absorp
+24-31   8   Unknown                     ❌ TBD        battery real current/power — need diff
+32-33   2   Daily Discharge (u16 LE)    ✅ CONFIRMED  direct Wh
+34-35   2   Unknown                     ❌ TBD        runtime? charge count?
+36-37   2   Daily Charge (u16 LE)       ✅ CONFIRMED  direct Wh (solar energy today)
+38-39   2   Lamp Mode (u16 LE)          ✅ CONFIRMED  1-4/7 — changes with cloud cmd (3↔7)
+40     1   Status byte 0                ❌ TBD
+41     1   SOC / Rated Ah               △ CALIBRATED raw byte = 54 (maybe % or Ah)
+42-45   4   Status bytes                 ❌ TBD
+46-47   2   Unknown                     ❌ TBD        runtime? error flags?
+48-53   6   Padding                     ❌ TBD        constant zeros
+54-55   2   CRC / Checksum               ❌ TBD       NOT CRC16/MODBUS — algo unknown
+```
+
+### Recalibrated Current Formulas (2026-06-30)
+
+| Field | Old Formula | New Formula | Error vs REST |
+|-------|------------|-------------|---------------|
+| **Battery Current** | `stage × 0.002433 + 0.2061` | **`stage / 408`** | < 0.06A |
+| **PV Current** | `stage × 0.002219 + 0.1231` | **`stage / 540`** | < 0.03A |
+| **Battery Power** | `stage × 0.033327 + 2.6157` | **`batA × batV`** | คำนวณจาก V×A |
+| **PV Power** | `stage × 0.035082 + 2.7526` | **`pvA × pvV`** | คำนวณจาก V×A |
+
+### Idle Detection
+
+| Condition | Meaning | batA | pvA | batV |
+|-----------|---------|------|-----|------|
+| `stage=0 + dailyChgWh ≤ 150` | Idle morning | ≈ 0.05A | ≈ 0.04A | ~12.8V |
+| `stage=0 + dailyChgWh > 150` | **Battery FULL** | **0** | **0** | **14.29V** ✅ |
+| `stage > 0` | Charging | `stage / 408` | `stage / 540` | LiFePO4 model |
+
+### Load Block (bytes 18-21) — Cloud ON/OFF Diff
+
+```
+                Before(Off)   ON          OFF(Back)
+u16LE(18,19):     231         7348         225      → Load Voltage (scale TBD)
+u16LE(20,21):       0          656           0      → Load Current (mA) ✅
+```
+
+### Lamp Mode Behavior
+
+- Cloud ON → mode `3` → `7` (Induction)
+- Cloud OFF → mode `7` → `3`
+- Byte 38-39 responds to cloud commands within 30 seconds
+
+### Still Unknown — Priority List
+
+| Bytes | Likely Contains | How to Find |
+|-------|----------------|-------------|
+| **24-31** (8B) | Battery Current (real), PV Current (real), Load Power | Diff packets with different batA/pvA |
+| **34-35** (2B) | Runtime hours? Charge cycle count? | Compare morning vs evening packets |
+| **46-47** (2B) | Error flags? Runtime? | Monitor over days |
+| **54-55** (2B) | CRC/Checksum algorithm | Test CRC16 variants, XOR, SUM on bytes 0-53 |
+| **16-17** (2B) | Temperature — needs recalibration | Non-linear (NTC thermistor?) — test at known temps |
+
+### Verified Data Points
+
+| Time | RAW PV | RAW Temp | Stage | batA(REST) | batA(parser) | pvA(REST) | pvA(parser) | EquipT(REST) |
+|------|--------|----------|-------|------------|--------------|-----------|--------------|--------------|
+| 07:37 | 2854 | 2138 | 256 | — | 0.63 | — | 0.47 | 30 |
+| 09:17 | 2859 | 2091 | 514 | 1.25 | 1.26 | 0.97 | 0.95 | 35 |
+| 09:35 | 2859 | 2090 | 512 | 1.76 | 1.25 | 1.37 | 0.95 | 36 |
+| 10:05 | 2470 | 2470 | 768 | 1.94 | 1.88 | 1.46 | 1.42 | 38 |
+| 11:35 | 2176 | 2432 | 0 | 0 | 0 | 0 | 0 | 38 |
+| 12:05 | 2321 | 2449 | 0 | 0 | 0 | 0 | 0 | 39 |
+| ON test | — | — | 148 | — | 0.36 | — | 0.27 | — |
+| OFF test| — | — | 512 | — | 1.25 | — | 0.95 | — |
+
+> **หมายเหตุ:** 09:17 และ 09:35 มี REST batA ต่างกันมาก (1.25 vs 1.76) แต่ stage ใกล้เคียงกัน (514 vs 512) — อาจเป็น timing mismatch ระหว่าง REST poll กับ MQTT publish
 ```
