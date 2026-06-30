@@ -225,15 +225,15 @@
     {
         "id": "tab_rest_api",
         "type": "tab",
-        "label": "REST API (Real)",
+        "label": "REST API (Local)",
         "disabled": false,
-        "info": "API จริงจากเว็บโรงงาน iot.xmnengjia.com\nToken: 3299ddc6...\nอุปกรณ์: equipment2596"
+        "info": "Python Local Proxy — http://127.0.0.1:8000\nอุปกรณ์: equipment2596"
     },
     {
-        "id": "inj_detect",
+        "id": "inj_local_status",
         "type": "inject",
         "z": "tab_rest_api",
-        "name": "📊 Refresh Status",
+        "name": "📊 Device Status",
         "props": [
             {
                 "p": "payload"
@@ -244,72 +244,72 @@
         "y": 80,
         "wires": [
             [
-                "fn_detect"
+                "fn_local_status"
             ]
         ]
     },
     {
-        "id": "fn_detect",
+        "id": "fn_local_status",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Build detectionEquipment",
-        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','token':'3299ddc619954787a020260630429266'};\nmsg.payload='serial=njfJ4FhLDCiZzZbB2025050857732596&imei=864865083329673';\nmsg.url='https://iot.xmnengjia.com/api/equipment/detectionEquipment';\nnode.status({fill:'blue',shape:'dot',text:'DETECT...'});\nreturn msg;",
+        "name": "Build Request",
+        "func": "const s=msg.serial||'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.url='http://127.0.0.1:8000/api/v1/solar/'+s+'/status';\nmsg.method='GET';\nnode.status({fill:'blue',shape:'dot',text:'GET status...'});\nreturn msg;",
         "outputs": 1,
-        "x": 350,
+        "x": 330,
         "y": 80,
         "wires": [
             [
-                "http_detect"
+                "http_local_status"
             ]
         ]
     },
     {
-        "id": "http_detect",
+        "id": "http_local_status",
         "type": "http request",
         "z": "tab_rest_api",
-        "name": "POST detectionEquipment",
-        "method": "POST",
+        "name": "GET /status",
+        "method": "GET",
         "ret": "obj",
         "url": "",
-        "x": 580,
+        "x": 550,
         "y": 80,
         "wires": [
             [
-                "fn_detect_parse"
+                "fn_local_parse_status"
             ]
         ]
     },
     {
-        "id": "fn_detect_parse",
+        "id": "fn_local_parse_status",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Parse Status",
-        "func": "const d=msg.payload;\nmsg.deviceStatus=d;\nif(d&&d.data) {\n  const s=d.data;\n  msg.payload={\n    batV:s.batteryVoltage||s.battery_voltage, batA:s.batteryCurrent||s.battery_circuit,\n    pvV:s.pvVoltage||s.solar_panel_voltage, pvA:s.pvCurrent||s.solar_panel_circuit,\n    loadV:s.loadVoltage||s.led_voltage, loadA:s.loadCurrent||s.led_circuit,\n    equipT:s.equipmentTemperature||s.inner_temperature, ambT:s.ambientTemperature||s.outer_temperature,\n    chg:s.chargeCapacity||s.charge_capacity, dis:s.dischargeCapacity||s.discharge_capacity,\n    online:s.isOnline||s.is_online, lighting:s.isLighting||s.is_lighting,\n    serial:s.serial||s.equipmentSerial, ts:s.timestamp\n  };\n  node.status({fill:'green',shape:'dot',text:'Bat='+(s.batteryVoltage||s.battery_voltage||'?')+'V'});\n}\nreturn msg;",
+        "name": "Parse",
+        "func": "const d=msg.payload;\nif(!d){node.warn('No response');return null;}\nmsg.payload={\n  online:d.is_online, signal:d.signal_strength, lighting:d.is_lighting,\n  bat:{v:d.battery_voltage, a_ma:d.battery_circuit, w:d.battery_power, soc:d.battery_percent},\n  load:{v:d.led_voltage, a_ma:d.led_circuit, w:d.led_power},\n  pv:{v:d.solar_panel_voltage, a_ma:d.solar_panel_circuit, w:d.solar_panel_power},\n  temp:{equip:d.inner_temperature, amb:d.outer_temperature},\n  energy:{chg:d.charge_capacity, dis:d.discharge_capacity}, runDay:d.run_day,\n  lat:d.latitude, lng:d.longitude, ts:d.timestamp\n};\nnode.status({fill:d.is_online?'green':'red',shape:'dot',text:'Bat='+d.battery_voltage+'V SOC='+d.battery_percent+'%'});\nreturn msg;",
         "outputs": 1,
-        "x": 830,
+        "x": 770,
         "y": 80,
         "wires": [
             [
-                "debug_detect"
+                "debug_local_status"
             ]
         ]
     },
     {
-        "id": "debug_detect",
+        "id": "debug_local_status",
         "type": "debug",
         "z": "tab_rest_api",
         "name": "📊 Status",
         "active": true,
         "complete": "payload",
-        "x": 1060,
+        "x": 990,
         "y": 80,
         "wires": []
     },
     {
-        "id": "inj_live",
+        "id": "inj_local_all",
         "type": "inject",
         "z": "tab_rest_api",
-        "name": "📡 Data Live",
+        "name": "📊 All Devices",
         "props": [
             {
                 "p": "payload"
@@ -320,85 +320,60 @@
         "y": 160,
         "wires": [
             [
-                "fn_live"
+                "fn_local_all"
             ]
         ]
     },
     {
-        "id": "fn_live",
+        "id": "fn_local_all",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Build dataLive",
-        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','token':'3299ddc619954787a020260630429266'};\nmsg.payload='id=252126';\nmsg.url='https://iot.xmnengjia.com/web/webSolar/dataLive';\nnode.status({fill:'blue',shape:'dot',text:'LIVE...'});\nreturn msg;",
+        "name": "Build",
+        "func": "msg.url='http://127.0.0.1:8000/api/v1/solar/devices';\nmsg.method='GET';\nnode.status({fill:'blue',shape:'dot',text:'GET all...'});\nreturn msg;",
         "outputs": 1,
-        "x": 350,
+        "x": 330,
         "y": 160,
         "wires": [
             [
-                "http_live"
+                "http_local_all"
             ]
         ]
     },
     {
-        "id": "http_live",
+        "id": "http_local_all",
         "type": "http request",
         "z": "tab_rest_api",
-        "name": "POST dataLive",
-        "method": "POST",
+        "name": "GET /devices",
+        "method": "GET",
         "ret": "obj",
         "url": "",
-        "x": 580,
+        "x": 550,
         "y": 160,
         "wires": [
             [
-                "fn_live_parse"
+                "debug_local_all"
             ]
         ]
     },
     {
-        "id": "fn_live_parse",
-        "type": "function",
-        "z": "tab_rest_api",
-        "name": "Parse Live",
-        "func": "msg.payload=msg.payload;\nnode.status({fill:'green',shape:'dot',text:'Live OK'});\nreturn msg;",
-        "outputs": 1,
-        "x": 830,
-        "y": 160,
-        "wires": [
-            [
-                "debug_live"
-            ]
-        ]
-    },
-    {
-        "id": "debug_live",
+        "id": "debug_local_all",
         "type": "debug",
         "z": "tab_rest_api",
-        "name": "📡 Live Data",
+        "name": "📊 All",
         "active": true,
         "complete": "payload",
-        "x": 1060,
+        "x": 770,
         "y": 160,
         "wires": []
     },
     {
-        "id": "comment_onoff",
+        "id": "comment_local_help",
         "type": "comment",
         "z": "tab_rest_api",
-        "name": "⚡ ON/OFF control: WebSocket เท่านั้น",
-        "info": "เว็บใช้ WebSocket สำหรับเปิด/ปิดไฟ\n→ ดู Tab WS ใน Chrome DevTools\n→ หา WS URL ตอนกด ON/OFF\n→ ส่งมาให้ แล้วผมจะเพิ่ม WebSocket node ให้",
+        "name": "📌 Python Local Proxy",
+        "info": "Base: http://127.0.0.1:8000\n\nEndpoints:\n  GET /api/v1/solar/{serial}/status\n  GET /api/v1/solar/devices\n\nPython server รันบน VPS — ดึงข้อมูลจาก vendor cloud มา expose ผ่าน REST",
         "x": 130,
-        "y": 260,
-        "wires": []
-    },
-    {
-        "id": "comment_rest_help",
-        "type": "comment",
-        "z": "tab_rest_api",
-        "name": "📌 Endpoints จริงจากเว็บ",
-        "info": "Token: 3299ddc619954787a020260630429266\n\ndetectionEquipment → รีเฟรชสถานะ (เหมือนกด Refresh บนเว็บ)\ndataLive → ข้อมูล real-time (id=252126)\n\nON/OFF → WebSocket — กำลังหา URL",
-        "x": 130,
-        "y": 350,
+        "y": 250,
         "wires": []
     }
 ]
