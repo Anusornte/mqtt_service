@@ -7,13 +7,6 @@
         "info": "§3.1 Flow รับข้อมูล — MQTT binary → parse_packet (3-protocol detector) → route by msgType → parse_solar_data_0x12 / parse_nj_response"
     },
     {
-        "id": "tab_solar_downlink",
-        "type": "tab",
-        "label": "Solar Downlink",
-        "disabled": false,
-        "info": "§3.2 Flow ส่งคำสั่ง — Inject/HTTP trigger → build binary frame → MQTT Out /solar/{IMEI}/sub"
-    },
-    {
         "id": "tab_byte_explorer",
         "type": "tab",
         "label": "Byte Explorer",
@@ -33,10 +26,14 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 130, "y": 100,
-        "wires": [["fn_explore_bytes"]]
+        "x": 130,
+        "y": 100,
+        "wires": [
+            [
+                "fn_explore_bytes"
+            ]
+        ]
     },
-
     {
         "id": "fn_explore_bytes",
         "type": "function",
@@ -49,10 +46,15 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 340, "y": 100,
-        "wires": [["debug_byte_map", "debug_byte_raw"]]
+        "x": 340,
+        "y": 100,
+        "wires": [
+            [
+                "debug_byte_map",
+                "debug_byte_raw"
+            ]
+        ]
     },
-
     {
         "id": "debug_byte_map",
         "type": "debug",
@@ -66,10 +68,10 @@
         "targetType": "msg",
         "statusVal": "payload['══ SUMMARY']",
         "statusType": "msg",
-        "x": 560, "y": 80,
+        "x": 560,
+        "y": 80,
         "wires": []
     },
-
     {
         "id": "debug_byte_raw",
         "type": "debug",
@@ -81,10 +83,10 @@
         "tostatus": false,
         "complete": "byteRows",
         "targetType": "msg",
-        "x": 580, "y": 160,
+        "x": 580,
+        "y": 160,
         "wires": []
     },
-
     {
         "id": "broker_mosquitto_solar",
         "type": "mqtt-broker",
@@ -118,39 +120,6 @@
         "sessionExpiry": ""
     },
     {
-        "id": "broker_mosquitto_downlink",
-        "type": "mqtt-broker",
-        "name": "Mosquitto Downlink",
-        "broker": "mosquitto-solar",
-        "port": "1883",
-        "clientid": "nodered-downlink",
-        "autoConnect": true,
-        "usetls": false,
-        "compatMode": false,
-        "protocolVersion": "4",
-        "keepalive": "60",
-        "cleansession": true,
-        "autoUnsubscribe": true,
-        "birthTopic": "",
-        "birthQos": "0",
-        "birthRetain": "false",
-        "birthPayload": "",
-        "birthMsg": {},
-        "closeTopic": "",
-        "closeQos": "0",
-        "closeRetain": "false",
-        "closePayload": "",
-        "closeMsg": {},
-        "willTopic": "",
-        "willQos": "0",
-        "willRetain": "false",
-        "willPayload": "",
-        "willMsg": {},
-        "userProps": "",
-        "sessionExpiry": ""
-    },
-
-    {
         "id": "mqtt_in_solar",
         "type": "mqtt in",
         "z": "tab_solar_uplink",
@@ -163,10 +132,14 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 140, "y": 160,
-        "wires": [["fn_parse_packet"]]
+        "x": 140,
+        "y": 160,
+        "wires": [
+            [
+                "fn_parse_packet"
+            ]
+        ]
     },
-
     {
         "id": "fn_parse_packet",
         "type": "function",
@@ -179,10 +152,14 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 350, "y": 160,
-        "wires": [["sw_msgtype"]]
+        "x": 350,
+        "y": 160,
+        "wires": [
+            [
+                "sw_msgtype"
+            ]
+        ]
     },
-
     {
         "id": "sw_msgtype",
         "type": "switch",
@@ -191,19 +168,29 @@
         "property": "msgType",
         "propertyType": "msg",
         "rules": [
-            { "t": "eq",  "v": "18", "vt": "num" },
-            { "t": "else" }
+            {
+                "t": "eq",
+                "v": "18",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
         ],
         "checkall": "false",
         "repair": false,
         "outputs": 2,
-        "x": 550, "y": 160,
+        "x": 550,
+        "y": 160,
         "wires": [
-            ["fn_parse_solar_data_0x12"],
-            ["fn_parse_nj_response"]
+            [
+                "fn_parse_solar_data_0x12"
+            ],
+            [
+                "fn_parse_nj_response"
+            ]
         ]
     },
-
     {
         "id": "fn_parse_solar_data_0x12",
         "type": "function",
@@ -216,10 +203,14 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 770, "y": 100,
-        "wires": [["debug_solar_data"]]
+        "x": 770,
+        "y": 100,
+        "wires": [
+            [
+                "debug_solar_data"
+            ]
+        ]
     },
-
     {
         "id": "fn_parse_nj_response",
         "type": "function",
@@ -232,10 +223,14 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 770, "y": 240,
-        "wires": [["debug_nj_monitor"]]
+        "x": 770,
+        "y": 240,
+        "wires": [
+            [
+                "debug_nj_monitor"
+            ]
+        ]
     },
-
     {
         "id": "debug_solar_data",
         "type": "debug",
@@ -249,10 +244,10 @@
         "targetType": "msg",
         "statusVal": "payload['PV Voltage']",
         "statusType": "msg",
-        "x": 1000, "y": 100,
+        "x": 1000,
+        "y": 100,
         "wires": []
     },
-
     {
         "id": "debug_nj_monitor",
         "type": "debug",
@@ -266,261 +261,8 @@
         "targetType": "msg",
         "statusVal": "payload.type",
         "statusType": "msg",
-        "x": 1000, "y": 240,
-        "wires": []
-    },
-
-    {
-        "id": "inj_query_status",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Query Lamp Status",
-        "props": [
-            { "p": "action", "v": "query_status", "vt": "str" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 80,
-        "wires": [["fn_build_0x8007"]]
-    },
-
-    {
-        "id": "fn_build_0x8007",
-        "type": "function",
-        "z": "tab_solar_downlink",
-        "name": "build_0x8007",
-        "func": "// §3.9 Build Query Lamp Status (0x8007)\nconst { buildQueryLampStatus } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 1;\nmsg.payload = buildQueryLampStatus(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.status({ fill:\"blue\", shape:\"dot\", text:\"0x8007 → \" + imei.slice(-6) });\nreturn msg;",
-        "outputs": 1,
-        "x": 360, "y": 80,
-        "wires": [["mqtt_out_downlink"]]
-    },
-
-    {
-        "id": "inj_control_lamp",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Control Lamp (ON 100%)",
-        "props": [
-            { "p": "action", "v": "control_lamp", "vt": "str" },
-            { "p": "lampNo", "v": "1", "vt": "num" },
-            { "p": "switchPos", "v": "100", "vt": "num" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 140,
-        "wires": [["fn_build_0x8100"]]
-    },
-
-    {
-        "id": "inj_control_lamp_off",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Control Lamp (OFF)",
-        "props": [
-            { "p": "action", "v": "control_lamp", "vt": "str" },
-            { "p": "lampNo", "v": "1", "vt": "num" },
-            { "p": "switchPos", "v": "0", "vt": "num" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 200,
-        "wires": [["fn_build_0x8100"]]
-    },
-
-    {
-        "id": "fn_build_0x8100",
-        "type": "function",
-        "z": "tab_solar_downlink",
-        "name": "build_0x8100",
-        "func": "// §3.9 Build Remote Control Lamp (0x8100)\n// switchPos: 0x00=off, 0x01-0x64=dim 1-100%\nconst { buildControlLamp } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 2;\nconst lampNo = msg.lampNo || 1;\nconst switchPos = msg.switchPos ?? 100;\nmsg.payload = buildControlLamp(imei, msgId, lampNo, switchPos);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nconst label = switchPos === 0 ? \"OFF\" : switchPos + \"%\";\nnode.status({ fill:\"yellow\", shape:\"dot\", text:\"0x8100 lamp=\" + lampNo + \" \" + label + \" → \" + imei.slice(-6) });\nreturn msg;",
-        "outputs": 1,
-        "x": 360, "y": 170,
-        "wires": [["mqtt_out_downlink"]]
-    },
-
-    {
-        "id": "inj_solar_query",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Solar Query (0xB4)",
-        "props": [
-            { "p": "action", "v": "solar_query", "vt": "str" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 280,
-        "wires": [["fn_build_0xB4"]]
-    },
-
-    {
-        "id": "fn_build_0xB4",
-        "type": "function",
-        "z": "tab_solar_downlink",
-        "name": "build_0xB4",
-        "func": "// §3.12 Build 0xB4 Solar Query\nconst { build0xB4Query } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 10;\nmsg.payload = build0xB4Query(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.status({ fill:\"blue\", shape:\"dot\", text:\"0xB4 query → \" + imei.slice(-6) });\nreturn msg;",
-        "outputs": 1,
-        "x": 360, "y": 280,
-        "wires": [["mqtt_out_downlink"]]
-    },
-
-    {
-        "id": "inj_solar_light_on",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Solar Light ON (AC C2)",
-        "props": [
-            { "p": "action", "v": "solar_light", "vt": "str" },
-            { "p": "lightAction", "v": "170", "vt": "num" },
-            { "p": "dimRatio", "v": "100", "vt": "num" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 360,
-        "wires": [["fn_build_0xC2"]]
-    },
-
-    {
-        "id": "inj_solar_light_off",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Solar Light OFF (AC C2)",
-        "props": [
-            { "p": "action", "v": "solar_light", "vt": "str" },
-            { "p": "lightAction", "v": "171", "vt": "num" },
-            { "p": "dimRatio", "v": "0", "vt": "num" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 420,
-        "wires": [["fn_build_0xC2"]]
-    },
-
-    {
-        "id": "fn_build_0xC2",
-        "type": "function",
-        "z": "tab_solar_downlink",
-        "name": "build_0xC2",
-        "func": "// §3.9 Build Solar Light Switch (0xC2 — AC...CA format)\n// action: 0xAA=on, 0xAB=off  |  dimRatio: 0-100\nconst { buildSolarLightSwitch } = global.get('decoders');\nconst imei   = msg.imei   || flow.get('imei') || \"864865083329673\";\nconst action = msg.lightAction || 0xAA;\nconst dim    = msg.dimRatio ?? 100;\nmsg.payload = buildSolarLightSwitch(imei, action, dim);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nconst label = action === 0xAB ? \"OFF\" : (\"ON \" + dim + \"%\");\nnode.status({ fill:\"yellow\", shape:\"dot\", text:\"0xC2 \" + label + \" → \" + imei.slice(-6) });\nreturn msg;",
-        "outputs": 1,
-        "x": 360, "y": 390,
-        "wires": [["mqtt_out_downlink"]]
-    },
-
-    {
-        "id": "inj_set_time",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Set System Time",
-        "props": [
-            { "p": "action", "v": "set_time", "vt": "str" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 500,
-        "wires": [["fn_build_0x8106"]]
-    },
-
-    {
-        "id": "fn_build_0x8106",
-        "type": "function",
-        "z": "tab_solar_downlink",
-        "name": "build_0x8106",
-        "func": "// §3.9 Build Set System Time (0x8106)\nconst { buildSetTime } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 6;\nmsg.payload = buildSetTime(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.status({ fill:\"blue\", shape:\"dot\", text:\"0x8106 set time → \" + imei.slice(-6) });\nreturn msg;",
-        "outputs": 1,
-        "x": 360, "y": 500,
-        "wires": [["mqtt_out_downlink"]]
-    },
-
-    {
-        "id": "inj_restart",
-        "type": "inject",
-        "z": "tab_solar_downlink",
-        "name": "Remote Restart",
-        "props": [
-            { "p": "action", "v": "restart", "vt": "str" },
-            { "p": "payload" },
-            { "p": "topic" }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "payloadType": "str",
-        "topic": "",
-        "x": 140, "y": 580,
-        "wires": [["fn_build_0x8101"]]
-    },
-
-    {
-        "id": "fn_build_0x8101",
-        "type": "function",
-        "z": "tab_solar_downlink",
-        "name": "build_0x8101",
-        "func": "// §3.9 Build Remote Restart (0x8101)\nconst { buildRestart } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 5;\nmsg.payload = buildRestart(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.warn(\"Restart sent to \" + imei + \" — device will go offline briefly\");\nnode.status({ fill:\"red\", shape:\"dot\", text:\"0x8101 restart → \" + imei.slice(-6) });\nreturn msg;",
-        "outputs": 1,
-        "x": 360, "y": 580,
-        "wires": [["mqtt_out_downlink"]]
-    },
-
-    {
-        "id": "mqtt_out_downlink",
-        "type": "mqtt out",
-        "z": "tab_solar_downlink",
-        "name": "/solar/{IMEI}/sub",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "respTopic": "",
-        "contentType": "",
-        "userProps": "",
-        "correl": "",
-        "expiry": "",
-        "broker": "broker_mosquitto_downlink",
-        "x": 590, "y": 330,
-        "wires": []
-    },
-
-    {
-        "id": "comment_downlink_help",
-        "type": "comment",
-        "z": "tab_solar_downlink",
-        "name": "📌 §3.2 Downlink Help",
-        "info": "§3.2 Flow ส่งคำสั่ง (Downlink)\n\n⚠️ LCS-TH verified behavior:\n- 0x8007 (NJ) → ❌ ไม่ตอบ\n- 0x8100 (NJ) → ❌ ไม่ตอบ\n- 0xB4 (AC)  → ACK 11B — ไม่มี data\n- 0xC2 (AC)  → ยังไม่ทดสอบ\n\nเปลี่ยน IMEI: ตั้ง msg.imei ก่อน inject หรือ inject props → imei",
-        "x": 140, "y": 660,
+        "x": 1000,
+        "y": 240,
         "wires": []
     }
 ]
