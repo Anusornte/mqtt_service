@@ -302,52 +302,57 @@ const BYTE_MAP = [
         decode: (buf, o) => null
     },
 
-    // ── Bytes 18-21: Unknown ─────────────────────────────────
+    // ── Bytes 18-21: ⚡ LOAD VOLTAGE + LOAD CURRENT ───────────
+    // ✅ Confirmed 2026-06-30 via ON/OFF test (cloud command → diff)
     {
         offset: 18, size: 4, span: "18-21",
-        group: "Unknown Block A",
-        field_lcs:      "Unknown (may be Load V or Bat V high byte)",
-        field_devproto: "Load Voltage high byte? (part of BE pair with 19-20)",
-        confidence: "UNKNOWN",
+        group: "⚡ LOAD BLOCK",
+        field_lcs:      "Load Voltage high byte (u16LE 18-19)",
+        field_devproto: "TBD",
+        confidence: "CALIBRATED",
         rawLabels: [
             { label: "u16LE(18)", fn: (buf, o) => String(u16le(buf, 18)) },
             { label: "u16BE(18)", fn: (buf, o) => String(u16be(buf, 18)) }
         ],
-        decode: (buf, o) => null
-    },
-    {
-        offset: 19, size: 4, span: "18-21",
-        group: "Unknown Block A",
-        field_lcs:      "Unknown",
-        field_devproto: "Load Voltage (uint16 BE 19-20) → ÷170.7 = V",
-        confidence: "TBD",
-        rawLabels: [
-            { label: "u16LE(19)", fn: (buf, o) => String(u16le(buf, 19)) },
-            { label: "u16BE(19)", fn: (buf, o) => {
-                const be = u16be(buf, 19);
-                return be + " → " + (be / 170.7).toFixed(2) + "V";
-            }}
-        ],
         decode: (buf, o) => {
-            const be = u16be(buf, 19);
-            return "BE=" + be + " → " + (be / 170.7).toFixed(2) + "V (÷170.7) [DEVPROTO: Load V]";
+            const le = u16le(buf, 18);
+            return "u16LE=" + le + " — varies with load (OFF~230, ON~7348)";
         }
     },
     {
-        offset: 20, size: 4, span: "18-21",
-        group: "Unknown Block A",
-        field_lcs:      "Unknown",
-        field_devproto: "(byte 20 of Load V BE pair)",
-        confidence: "TBD",
+        offset: 19, size: 4, span: "18-21",
+        group: "⚡ LOAD BLOCK",
+        field_lcs:      "Load Voltage low byte (part of u16LE pair with 18)",
+        field_devproto: "TBD",
+        confidence: "CALIBRATED",
         rawLabels: [],
         decode: (buf, o) => null
     },
     {
-        offset: 21, size: 4, span: "18-21",
-        group: "Unknown Block A",
-        field_lcs:      "Unknown",
-        field_devproto: "Unknown — maybe Load Current start?",
-        confidence: "UNKNOWN",
+        offset: 20, size: 2, span: "20-21",
+        group: "⚡ LOAD CURRENT ✅",
+        field_lcs:      "Load Current (uint16 LE, mA) — 0 when OFF, 656mA when ON",
+        field_devproto: "TBD",
+        confidence: "CONFIRMED",
+        rawLabels: [
+            { label: "u16LE mA", fn: (buf, o) => {
+                const ma = u16le(buf, 20);
+                return ma + " mA = " + (ma / 1000).toFixed(2) + " A";
+            }},
+            { label: "u16BE", fn: (buf, o) => String(u16be(buf, 20)) }
+        ],
+        decode: (buf, o) => {
+            const ma = u16le(buf, 20);
+            if (ma === 0) return "0 mA — LED OFF";
+            return ma + " mA (" + (ma/1000).toFixed(2) + "A) — LED ON";
+        }
+    },
+    {
+        offset: 21, size: 2, span: "20-21",
+        group: "⚡ LOAD CURRENT ✅",
+        field_lcs:      "Load Current high byte (part of u16LE mA pair with 20)",
+        field_devproto: "TBD",
+        confidence: "CONFIRMED",
         rawLabels: [],
         decode: (buf, o) => null
     },
@@ -659,6 +664,7 @@ function exploreBytes(buf) {
             "PV Power": formula_pvW(stg) + " W",
             "Daily Charge": chgWh + " Wh",
             "Daily Discharge": u16le(buf, 32) + " Wh",
+            "Load Current (u16LE mA)": (u16le(buf, 20) === 0 ? "0 (OFF)" : u16le(buf, 20) + " mA = " + (u16le(buf,20)/1000).toFixed(2) + "A (ON)"),
             "Lamp Mode": lamp + (lamp === 7 ? " 🔥 Induction" : lamp === 4 ? " OFF" : lamp === 3 ? " ON" : " timer"),
             "SOC (byte 41)": (buf[41] || "?") + " (raw)",
             "Signal": (buf[9] > 127 ? buf[9] - 256 : buf[9]) + " dBm",
