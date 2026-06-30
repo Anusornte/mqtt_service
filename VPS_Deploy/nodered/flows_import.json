@@ -1,17 +1,30 @@
 [
     {
-        "id": "tab_solar_decoder",
+        "id": "tab_solar_uplink",
         "type": "tab",
-        "label": "Solar MQTT Decoder",
+        "label": "Solar Uplink",
         "disabled": false,
-        "info": "รับ MQTT binary จาก NJ-iot401 → decode Modbus RTU FC03 (M1280) → structured JSON"
+        "info": "§3.1 Flow รับข้อมูล — MQTT binary → parse_packet (3-protocol detector) → route by msgType → parse_solar_data_0x12 / parse_nj_response"
     },
-
     {
-        "id": "mqtt_in_solar",
+        "id": "tab_solar_downlink",
+        "type": "tab",
+        "label": "Solar Downlink",
+        "disabled": false,
+        "info": "§3.2 Flow ส่งคำสั่ง — Inject/HTTP trigger → build binary frame → MQTT Out /solar/{IMEI}/sub"
+    },
+    {
+        "id": "tab_byte_explorer",
+        "type": "tab",
+        "label": "Byte Explorer",
+        "disabled": false,
+        "info": "Byte-by-Byte Decoder — แสดง dual interpretation (LCS-TH calibrated vs DEVICE_PROTOCOL) ทุก byte 0-55"
+    },
+    {
+        "id": "mqtt_in_explorer",
         "type": "mqtt in",
-        "z": "tab_solar_decoder",
-        "name": "MQTT /solar/+/pub",
+        "z": "tab_byte_explorer",
+        "name": "/solar/+/pub",
         "topic": "/solar/+/pub",
         "qos": "0",
         "datatype": "buffer",
@@ -20,101 +33,55 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 150,
-        "y": 180,
-        "wires": [["fn_decode"]]
+        "x": 130, "y": 100,
+        "wires": [["fn_explore_bytes"]]
     },
 
     {
-        "id": "fn_decode",
+        "id": "fn_explore_bytes",
         "type": "function",
-        "z": "tab_solar_decoder",
-        "name": "Decode Modbus RTU",
-        "func": "// Device Registry (EMEI → Name)\nconst DEVICES = {\n    '864865083327800': 'device-01',\n    '867920075008640': 'device-02',\n    '864865083329673': 'equipment2596'\n};\n\nconst { decodeModbus, extractEMEI } = global.get('decoders');\n\nconst buf        = msg.payload;\nconst emei       = extractEMEI(msg.topic);\nconst deviceName = DEVICES[emei] || emei;\n\nif (!Buffer.isBuffer(buf)) {\n    node.warn(`[${deviceName}] payload is not Buffer: ${typeof buf}`);\n    return null;\n}\n\nconst decoded = decodeModbus(buf);\n\nnode.status({\n    fill:  decoded.type === 'telemetry' ? 'green' : 'red',\n    shape: 'dot',\n    text:  `${deviceName} | ${decoded.type} | ${buf.length}B`\n});\n\nmsg.emei        = emei;\nmsg.device_name = deviceName;\nmsg.payload     = {\n    emei,\n    device_name: deviceName,\n    ts:          new Date().toISOString(),\n    ...decoded\n};\n\nreturn msg;",
+        "z": "tab_byte_explorer",
+        "name": "explore_bytes",
+        "func": "// ============================================================\n// Byte Explorer — decode every byte with dual interpretation\n// Calls global.get('decoders').exploreBytes(buf)\n// Shows LCS-TH calibrated vs DEVICE_PROTOCOL views\n// ============================================================\n\nconst { exploreBytes } = global.get('decoders');\n\nconst raw = msg.payload;\nconst buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw || []);\nconst result = exploreBytes(buf);\n\n// Build Node-RED debug-friendly output (grouped by section)\nconst imei = msg.topic.split('/')[2] || '?';\n\n// ── Group rows by section ───────────────────────────────────\nconst sections = {};\nfor (const row of result.rows) {\n    const grp = row.group;\n    if (!sections[grp]) sections[grp] = [];\n    sections[grp].push(row);\n}\n\nmsg.payload = {\n    \"══ DEVICE\": imei,\n    \"══ SIZE\": result.length + \" bytes (expected \" + result.expectedLength + \")\" + (result.isShort ? \" ⚡ SHORT PACKET\" : \"\"),\n    \"══ BCD TIMESTAMP\": result.bcdTimestamp || \"N/A\",\n    \"══ SUMMARY\": result.summary.confirmed + \"✓ \" + result.summary.calibrated + \"△ \" + result.summary.tbd + \"? \" + result.summary.unknown + \"✗  (\" + result.summary.pctKnown + \"% known)\",\n    \"══ KEY VALUES\": result.keyValues,\n    \"══ LEGEND\": \"✓=CONFIRMED  △=CALIBRATED  ?=TBD  ✗=UNKNOWN\"\n};\n\n// ── Attach full row data for debug inspection ───────────────\nmsg.byteRows = result.rows;\nmsg.byteSummary = result.summary;\nmsg.byteKeys = result.keyValues;\nmsg.byteSections = sections;\n\nnode.status({\n    fill: result.summary.pctKnown >= 70 ? 'green' : result.summary.pctKnown >= 40 ? 'yellow' : 'red',\n    shape: 'dot',\n    text: imei.slice(-6) + ' | ' + result.summary.confirmed + '✓ ' + result.summary.calibrated + '△ ' + result.summary.unknown + '✗'\n});\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 370,
-        "y": 180,
-        "wires": [["sw_type"]]
+        "x": 340, "y": 100,
+        "wires": [["debug_byte_map", "debug_byte_raw"]]
     },
 
     {
-        "id": "sw_type",
-        "type": "switch",
-        "z": "tab_solar_decoder",
-        "name": "msg type?",
-        "property": "payload.type",
-        "propertyType": "msg",
-        "rules": [
-            { "t": "eq", "v": "telemetry", "vt": "str" },
-            { "t": "eq", "v": "error",     "vt": "str" }
-        ],
-        "checkall": "false",
-        "repair": false,
-        "outputs": 2,
-        "x": 570,
-        "y": 180,
-        "wires": [
-            ["debug_telemetry", "debug_raw"],
-            ["debug_error"]
-        ]
-    },
-
-    {
-        "id": "debug_telemetry",
+        "id": "debug_byte_map",
         "type": "debug",
-        "z": "tab_solar_decoder",
-        "name": "Telemetry",
+        "z": "tab_byte_explorer",
+        "name": "Byte Map (grouped)",
         "active": true,
         "tosidebar": true,
         "console": false,
         "tostatus": true,
         "complete": "payload",
         "targetType": "msg",
-        "statusVal": "payload.battery.soc",
+        "statusVal": "payload['══ SUMMARY']",
         "statusType": "msg",
-        "x": 790,
-        "y": 120,
+        "x": 560, "y": 80,
         "wires": []
     },
 
     {
-        "id": "debug_raw",
+        "id": "debug_byte_raw",
         "type": "debug",
-        "z": "tab_solar_decoder",
-        "name": "Raw Hex (calibration)",
+        "z": "tab_byte_explorer",
+        "name": "Byte Rows (full array)",
         "active": false,
         "tosidebar": true,
         "console": false,
         "tostatus": false,
-        "complete": "payload.raw",
+        "complete": "byteRows",
         "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 810,
-        "y": 200,
-        "wires": []
-    },
-
-    {
-        "id": "debug_error",
-        "type": "debug",
-        "z": "tab_solar_decoder",
-        "name": "Decode Error",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 790,
-        "y": 280,
+        "x": 580, "y": 160,
         "wires": []
     },
 
@@ -149,5 +116,411 @@
         "willMsg": {},
         "userProps": "",
         "sessionExpiry": ""
+    },
+    {
+        "id": "broker_mosquitto_downlink",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Downlink",
+        "broker": "mosquitto-solar",
+        "port": "1883",
+        "clientid": "nodered-downlink",
+        "autoConnect": true,
+        "usetls": false,
+        "compatMode": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+
+    {
+        "id": "mqtt_in_solar",
+        "type": "mqtt in",
+        "z": "tab_solar_uplink",
+        "name": "/solar/+/pub",
+        "topic": "/solar/+/pub",
+        "qos": "0",
+        "datatype": "buffer",
+        "broker": "broker_mosquitto_solar",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 140, "y": 160,
+        "wires": [["fn_parse_packet"]]
+    },
+
+    {
+        "id": "fn_parse_packet",
+        "type": "function",
+        "z": "tab_solar_uplink",
+        "name": "parse_packet",
+        "func": "// ============================================================\n// §3.4 parse_packet — 3-protocol detector (TI / NJ / Monitor)\n// Calibrated 2026-06-27 for equipment2596 (LCS-TH, IMEI 864865083329673)\n// ============================================================\n\nfunction bcd(b) { return (b >> 4) * 10 + (b & 0x0F); }\nfunction u16le(buf, off) { return buf[off] | (buf[off + 1] << 8); }\nfunction hexStr(buf, max) {\n    return buf.slice(0, Math.min(buf.length, max || 64))\n        .toString('hex').toUpperCase().replace(/.{2}/g, '$& ').trim();\n}\nfunction pad2(n) { return String(n).padStart(2, \"0\"); }\n\nconst raw = msg.payload;\nconst buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);\n\nif (msg.topic && msg.topic.indexOf(\"/health/\") !== -1) return null;\nif (buf.length < 14) { node.warn(\"Too short: \" + buf.length + \"B\"); return null; }\n\n// ── (A) Monitor Text Message ────────────────────────────────\n// §3.10: Forward Monitor text for analysis\nif (buf[0] === 0x55 && buf[1] === 0x70) {\n    const txt = buf.toString('utf8').trim();\n    msg.payload = txt;\n    msg.monitorText = txt;\n    msg.protocol = \"monitor\";\n    msg.msgType = -1;\n    msg.imei = msg.topic.split(\"/\")[2];\n    var mx;\n    msg.monitor = {};\n    if ((mx = txt.match(/Uptime[:\\s]*(\\d+)/i)))            msg.monitor.uptime_sec = parseInt(mx[1]);\n    if ((mx = txt.match(/Charge[:\\s]*([\\d.]+)\\s*[Ww]/)))   msg.monitor.charge_w = parseFloat(mx[1]);\n    if ((mx = txt.match(/Discharge[:\\s]*([\\d.]+)\\s*[Ww]/))) msg.monitor.discharge_w = parseFloat(mx[1]);\n    if ((mx = txt.match(/Bat(?:tery)?[:\\s]*([\\d.]+)\\s*V/))) msg.monitor.bat_v = parseFloat(mx[1]);\n    if ((mx = txt.match(/PV[:\\s]*([\\d.]+)\\s*V/)))           msg.monitor.pv_v = parseFloat(mx[1]);\n    if ((mx = txt.match(/Load[:\\s]*([\\d.]+)\\s*V/)))         msg.monitor.load_v = parseFloat(mx[1]);\n    if ((mx = txt.match(/Load[:\\s]*([\\d.]+)\\s*A/)))         msg.monitor.load_a = parseFloat(mx[1]);\n    if ((mx = txt.match(/Load[:\\s]*([\\d.]+)\\s*W/)))         msg.monitor.load_w = parseFloat(mx[1]);\n    if ((mx = txt.match(/Temp[:\\s]*([\\d.]+)/)))             msg.monitor.temp_c = parseFloat(mx[1]);\n    node.status({ fill:\"blue\", shape:\"dot\", text:\"Monitor: \" + txt.slice(0, 50) });\n    return msg;\n}\n\n// ── (B) NJ Binary Response ──────────────────────────────────\n// Check for NJ start marker (4E 4A)\nif (buf[0] === 0x4E && buf[1] === 0x4A) {\n    const { getBodyOffset } = global.get('decoders');\n    msg.rawBuf = buf;\n    msg.bodyOffset = getBodyOffset(buf);\n    msg.protocol = \"nj\";\n    msg.msgType = (buf[5] << 8) | buf[6];  // command word\n    msg.rssi = buf[9];\n    msg.imei = msg.topic.split(\"/\")[2];\n    msg.deviceTime = new Date().toISOString();\n    msg.cmdHex = \"0x\" + msg.msgType.toString(16).toUpperCase().padStart(4, \"0\");\n    node.status({ fill:\"yellow\", shape:\"dot\", text:\"NJ 0x\" + msg.msgType.toString(16) });\n    return msg;\n}\n\n// ── (C) TI Binary Protocol (LCS-TH primary) ─────────────────\nif (buf[0] !== 0x54 || buf[1] !== 0x49) {\n    node.warn(\"[parse] Unknown start: \" + hexStr(buf.slice(0, 4)));\n    node.status({ fill:\"red\", shape:\"ring\", text:\"bad marker\" });\n    return null;\n}\n\nmsg.protocol = \"ti\";\n\n// BCD timestamp (China UTC+8) → Thailand UTC+7\nconst yr = 2000 + bcd(buf[2]);\nconst mo = bcd(buf[3]); const dy = bcd(buf[4]);\nconst hh = bcd(buf[5]); const mi = bcd(buf[6]); const ss = bcd(buf[7]);\nconst utcMs = Date.UTC(yr, mo - 1, dy, hh, mi, ss) - 8 * 3600 * 1000;\nconst td    = new Date(utcMs + 7 * 3600 * 1000);\nmsg.deviceTime = td.getUTCFullYear() + \"-\" + pad2(td.getUTCMonth() + 1) + \"-\" +\n    pad2(td.getUTCDate()) + \"T\" + pad2(td.getUTCHours()) + \":\" +\n    pad2(td.getUTCMinutes()) + \":\" + pad2(td.getUTCSeconds()) + \"+07:00\";\n\nmsg.msgType  = buf[8];\nmsg.signal   = buf[9] > 127 ? buf[9] - 256 : buf[9];\nmsg.sequence = buf[12];\nmsg.imei     = msg.topic.split(\"/\")[2];\nmsg.cmdHex   = \"0x\" + msg.msgType.toString(16).toUpperCase().padStart(2, \"0\");\n\n// Parse telemetry (msgType 0x12)\nif (buf.length >= 48 && msg.msgType === 0x12) {\n    const raw_pv    = u16le(buf, 14);\n    const raw_temp  = u16le(buf, 16);\n    const chargeStg = u16le(buf, 22);\n\n    const dailyChargeWh    = u16le(buf, 36);\n    const dailyDischargeWh = u16le(buf, 32);\n    const lampMode         = u16le(buf, 38);\n    const soc              = buf.length > 41 ? buf[41] : null;\n\n    const isTrueIdle = (chargeStg === 0 && dailyChargeWh > 150);\n\n    // PV Voltage (offset 14, R²=0.99, MAE=0.17V)\n    const pvV = Math.round((raw_pv * 0.005592 + 1.2067) * 100) / 100;\n\n    // Battery/PV Current & Power — derived from charge stage (offset 22, R²>0.99)\n    var batA, pvA, batW, pvW;\n    if (isTrueIdle) {\n        batA = 0; pvA = 0; batW = 0; pvW = 0;\n    } else if (chargeStg === 0) {\n        batA = 0.05; pvA = 0.04;\n        batW = Math.round((batA * batV) * 100) / 100;\n        pvW  = Math.round((pvA * pvV) * 100) / 100;\n    } else {\n        batA = Math.round((chargeStg * 0.002433 + 0.2061) * 1000) / 1000;\n        pvA  = Math.round((chargeStg * 0.002219 + 0.1231) * 1000) / 1000;\n        batW = Math.round((chargeStg * 0.033327 + 2.6157) * 10) / 10;\n        pvW  = Math.round((chargeStg * 0.035082 + 2.7526) * 10) / 10;\n    }\n\n    // Battery Voltage — LiFePO4 4S chemistry model (MAE=0.08V)\n    function estimateBatV_LiFePO4(stg, dailyWh, socVal) {\n        const s = socVal || 54;\n        if (stg === 0) {\n            if (dailyWh > 150) return 14.25;\n            return Math.round((12.8 + (s - 20) * 0.015) * 100) / 100;\n        }\n        if (stg <= 512)  return 13.45;\n        if (stg <= 2048) return 13.65;\n        return 13.80;\n    }\n    const batV = estimateBatV_LiFePO4(chargeStg, dailyChargeWh, soc);\n\n    // Ambient Temperature (offset 16, R²=0.82, MAE=2.8°C)\n    const ambTemp_C = Math.round((raw_temp * 0.064121 - 105.8627) * 10) / 10;\n\n    // Charge stage label\n    const chargeLabel = isTrueIdle ? \"idle (full)\"\n        : chargeStg === 0 ? \"idle\"\n        : chargeStg <= 512 ? \"float\"\n        : chargeStg <= 2048 ? \"bulk\"\n        : \"absorp\";\n\n    msg.data = {\n        pvVoltage: pvV, pvCurrent: pvA, pvPower: pvW,\n        battVoltage: batV, battCurrent: batA, battPower: batW,\n        battSOC: soc,\n        dailyChargeWh, dailyDischargeWh,\n        lampMode,\n        ambTemp_C, chargeStage: chargeStg, chargeLabel,\n        isTrueIdle,\n        signal_dBm: msg.signal, sequence: msg.sequence,\n        deviceTime: msg.deviceTime, imei: msg.imei,\n        _raw_hex: hexStr(buf, 56)\n    };\n\n    node.status({ fill:\"green\", shape:\"dot\",\n        text: pad2(td.getUTCHours()) + \":\" + pad2(td.getUTCMinutes()) +\n              \"  pv=\" + pvV + \"V/\" + pvA + \"A  bat~\" + batV + \"V  \" + chargeLabel +\n              \"  lamp=\" + (lampMode === 4 ? \"off\" : \"on\") });\n} else {\n    node.status({ fill:\"yellow\", shape:\"dot\",\n        text: \"type=0x\" + msg.msgType.toString(16) + \"  len=\" + buf.length });\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350, "y": 160,
+        "wires": [["sw_msgtype"]]
+    },
+
+    {
+        "id": "sw_msgtype",
+        "type": "switch",
+        "z": "tab_solar_uplink",
+        "name": "msgType?",
+        "property": "msgType",
+        "propertyType": "msg",
+        "rules": [
+            { "t": "eq",  "v": "18", "vt": "num" },
+            { "t": "else" }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 2,
+        "x": 550, "y": 160,
+        "wires": [
+            ["fn_parse_solar_data_0x12"],
+            ["fn_parse_nj_response"]
+        ]
+    },
+
+    {
+        "id": "fn_parse_solar_data_0x12",
+        "type": "function",
+        "z": "tab_solar_uplink",
+        "name": "parse_solar_data_0x12",
+        "func": "// ============================================================\n// §3.7 parse_solar_data_0x12 — Format TI telemetry for display\n// Formats msg.data (set by parse_packet) for debug sidebar\n// ============================================================\n\nconst d = msg.data;\nif (!d) return null;\n\nconst lampModeStr = { 1: \"mode1\", 2: \"mode2\", 3: \"on\", 4: \"off (daytime)\" }[d.lampMode]\n    || (\"mode \" + d.lampMode);\n\nconst batDir = d.isTrueIdle ? \"idle (full)\"\n    : d.battCurrent >= 0.5 ? \"charging\"\n    : d.battCurrent <= -0.5 ? \"discharging\"\n    : \"idle\";\n\nmsg.payload = {\n    \"== TIME ==\": {},\n    \"Device Time (Thailand)\": d.deviceTime,\n    \"IMEI\":                   d.imei,\n    \"Signal\":                 d.signal_dBm + \" dBm\",\n    \"Sequence\":               d.sequence,\n    \"== PV SOLAR ==\": {},\n    \"PV Voltage\":     d.pvVoltage + \" V\",\n    \"PV Current\":     d.pvCurrent + \" A\",\n    \"PV Power\":       d.pvPower + \" W\",\n    \"== BATTERY ==\": {},\n    \"Batt Voltage\":   d.battVoltage + \" V  (LiFePO4 4S, MAE 0.08V)\",\n    \"Batt Current\":   d.battCurrent + \" A  (\" + batDir + \")\",\n    \"Batt Power\":     d.battPower + \" W\",\n    \"Batt SOC\":       (d.battSOC !== null ? d.battSOC + \" (raw byte)\" : \"n/a\"),\n    \"== CHARGE ==\": {},\n    \"Charge Stage\":   d.chargeStage + \"  (\" + d.chargeLabel + \")\",\n    \"== ENERGY ==\": {},\n    \"Daily Charge\":    d.dailyChargeWh + \" Wh  (solar today)\",\n    \"Daily Discharge\": d.dailyDischargeWh + \" Wh  (lamp last night)\",\n    \"== LAMP ==\": {},\n    \"Lamp Mode\":      d.lampMode + \"  (\" + lampModeStr + \")\",\n    \"== ENVIRONMENT ==\": {},\n    \"Ambient Temp\":   (d.ambTemp_C !== null ? d.ambTemp_C + \" °C  (MAE 2.8°C)\" : \"n/a\"),\n    \"== DEBUG ==\": {},\n    \"Raw Hex\":        d._raw_hex\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 770, "y": 100,
+        "wires": [["debug_solar_data"]]
+    },
+
+    {
+        "id": "fn_parse_nj_response",
+        "type": "function",
+        "z": "tab_solar_uplink",
+        "name": "parse_nj_response",
+        "func": "// ============================================================\n// §3.11 parse_nj_response — NJ Protocol + Monitor text parser\n// Routes NJ commands (0x0007/0x0008/0x0001/0x00B4) to sub-parsers\n// Also handles Monitor text messages forwarded from parse_packet\n// ============================================================\n\nconst { parseNJResponse, parseLampStatus, parseAlarm, parseOnline, parseSolar0xB4 } = global.get('decoders');\n\n// ── Monitor Text (§3.10) ────────────────────────────────────\nif (msg.protocol === \"monitor\") {\n    // Already parsed in parse_packet — just set measurement\n    msg.payload = msg.monitor || msg.monitorText;\n    msg.measurement = \"monitor_text\";\n    return msg;\n}\n\n// ── NJ Protocol (§3.11) ─────────────────────────────────────\nconst buf = msg.rawBuf;\nconst o = msg.bodyOffset;\nconst cmd = msg.msgType;\n\nswitch (cmd) {\n    case 0x0007: {\n        const r = parseLampStatus(buf, o, msg);\n        msg.payload = r;\n        msg.measurement = \"lamp_status\";\n        break;\n    }\n    case 0x0008: {\n        const r = parseAlarm(buf, o, msg);\n        msg.payload = r;\n        msg.measurement = \"alarm_event\";\n        break;\n    }\n    case 0x0001: {\n        const r = parseOnline(buf, o, msg);\n        msg.payload = r;\n        msg.measurement = \"device_event\";\n        break;\n    }\n    case 0x00B4: {\n        const r = parseSolar0xB4(buf, o, msg);\n        msg.payload = r;\n        msg.measurement = \"solar_data\";\n        break;\n    }\n    default: {\n        msg.payload = {\n            type: \"unknown_nj\",\n            command: \"0x\" + cmd.toString(16).toUpperCase().padStart(4, \"0\"),\n            raw_hex: buf.toString(\"hex\").toUpperCase()\n        };\n        msg.measurement = \"nj_unknown\";\n    }\n}\n\nnode.status({\n    fill: \"green\", shape: \"dot\",\n    text: (msg.measurement || \"nj\") + \" | \" + msg.imei?.slice(-6) || \"?\"\n});\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 770, "y": 240,
+        "wires": [["debug_nj_monitor"]]
+    },
+
+    {
+        "id": "debug_solar_data",
+        "type": "debug",
+        "z": "tab_solar_uplink",
+        "name": "Solar Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload['PV Voltage']",
+        "statusType": "msg",
+        "x": 1000, "y": 100,
+        "wires": []
+    },
+
+    {
+        "id": "debug_nj_monitor",
+        "type": "debug",
+        "z": "tab_solar_uplink",
+        "name": "NJ / Monitor",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload.type",
+        "statusType": "msg",
+        "x": 1000, "y": 240,
+        "wires": []
+    },
+
+    {
+        "id": "inj_query_status",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Query Lamp Status",
+        "props": [
+            { "p": "action", "v": "query_status", "vt": "str" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 80,
+        "wires": [["fn_build_0x8007"]]
+    },
+
+    {
+        "id": "fn_build_0x8007",
+        "type": "function",
+        "z": "tab_solar_downlink",
+        "name": "build_0x8007",
+        "func": "// §3.9 Build Query Lamp Status (0x8007)\nconst { buildQueryLampStatus } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 1;\nmsg.payload = buildQueryLampStatus(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.status({ fill:\"blue\", shape:\"dot\", text:\"0x8007 → \" + imei.slice(-6) });\nreturn msg;",
+        "outputs": 1,
+        "x": 360, "y": 80,
+        "wires": [["mqtt_out_downlink"]]
+    },
+
+    {
+        "id": "inj_control_lamp",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Control Lamp (ON 100%)",
+        "props": [
+            { "p": "action", "v": "control_lamp", "vt": "str" },
+            { "p": "lampNo", "v": "1", "vt": "num" },
+            { "p": "switchPos", "v": "100", "vt": "num" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 140,
+        "wires": [["fn_build_0x8100"]]
+    },
+
+    {
+        "id": "inj_control_lamp_off",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Control Lamp (OFF)",
+        "props": [
+            { "p": "action", "v": "control_lamp", "vt": "str" },
+            { "p": "lampNo", "v": "1", "vt": "num" },
+            { "p": "switchPos", "v": "0", "vt": "num" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 200,
+        "wires": [["fn_build_0x8100"]]
+    },
+
+    {
+        "id": "fn_build_0x8100",
+        "type": "function",
+        "z": "tab_solar_downlink",
+        "name": "build_0x8100",
+        "func": "// §3.9 Build Remote Control Lamp (0x8100)\n// switchPos: 0x00=off, 0x01-0x64=dim 1-100%\nconst { buildControlLamp } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 2;\nconst lampNo = msg.lampNo || 1;\nconst switchPos = msg.switchPos ?? 100;\nmsg.payload = buildControlLamp(imei, msgId, lampNo, switchPos);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nconst label = switchPos === 0 ? \"OFF\" : switchPos + \"%\";\nnode.status({ fill:\"yellow\", shape:\"dot\", text:\"0x8100 lamp=\" + lampNo + \" \" + label + \" → \" + imei.slice(-6) });\nreturn msg;",
+        "outputs": 1,
+        "x": 360, "y": 170,
+        "wires": [["mqtt_out_downlink"]]
+    },
+
+    {
+        "id": "inj_solar_query",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Solar Query (0xB4)",
+        "props": [
+            { "p": "action", "v": "solar_query", "vt": "str" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 280,
+        "wires": [["fn_build_0xB4"]]
+    },
+
+    {
+        "id": "fn_build_0xB4",
+        "type": "function",
+        "z": "tab_solar_downlink",
+        "name": "build_0xB4",
+        "func": "// §3.12 Build 0xB4 Solar Query\nconst { build0xB4Query } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 10;\nmsg.payload = build0xB4Query(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.status({ fill:\"blue\", shape:\"dot\", text:\"0xB4 query → \" + imei.slice(-6) });\nreturn msg;",
+        "outputs": 1,
+        "x": 360, "y": 280,
+        "wires": [["mqtt_out_downlink"]]
+    },
+
+    {
+        "id": "inj_solar_light_on",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Solar Light ON (AC C2)",
+        "props": [
+            { "p": "action", "v": "solar_light", "vt": "str" },
+            { "p": "lightAction", "v": "170", "vt": "num" },
+            { "p": "dimRatio", "v": "100", "vt": "num" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 360,
+        "wires": [["fn_build_0xC2"]]
+    },
+
+    {
+        "id": "inj_solar_light_off",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Solar Light OFF (AC C2)",
+        "props": [
+            { "p": "action", "v": "solar_light", "vt": "str" },
+            { "p": "lightAction", "v": "171", "vt": "num" },
+            { "p": "dimRatio", "v": "0", "vt": "num" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 420,
+        "wires": [["fn_build_0xC2"]]
+    },
+
+    {
+        "id": "fn_build_0xC2",
+        "type": "function",
+        "z": "tab_solar_downlink",
+        "name": "build_0xC2",
+        "func": "// §3.9 Build Solar Light Switch (0xC2 — AC...CA format)\n// action: 0xAA=on, 0xAB=off  |  dimRatio: 0-100\nconst { buildSolarLightSwitch } = global.get('decoders');\nconst imei   = msg.imei   || flow.get('imei') || \"864865083329673\";\nconst action = msg.lightAction || 0xAA;\nconst dim    = msg.dimRatio ?? 100;\nmsg.payload = buildSolarLightSwitch(imei, action, dim);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nconst label = action === 0xAB ? \"OFF\" : (\"ON \" + dim + \"%\");\nnode.status({ fill:\"yellow\", shape:\"dot\", text:\"0xC2 \" + label + \" → \" + imei.slice(-6) });\nreturn msg;",
+        "outputs": 1,
+        "x": 360, "y": 390,
+        "wires": [["mqtt_out_downlink"]]
+    },
+
+    {
+        "id": "inj_set_time",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Set System Time",
+        "props": [
+            { "p": "action", "v": "set_time", "vt": "str" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 500,
+        "wires": [["fn_build_0x8106"]]
+    },
+
+    {
+        "id": "fn_build_0x8106",
+        "type": "function",
+        "z": "tab_solar_downlink",
+        "name": "build_0x8106",
+        "func": "// §3.9 Build Set System Time (0x8106)\nconst { buildSetTime } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 6;\nmsg.payload = buildSetTime(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.status({ fill:\"blue\", shape:\"dot\", text:\"0x8106 set time → \" + imei.slice(-6) });\nreturn msg;",
+        "outputs": 1,
+        "x": 360, "y": 500,
+        "wires": [["mqtt_out_downlink"]]
+    },
+
+    {
+        "id": "inj_restart",
+        "type": "inject",
+        "z": "tab_solar_downlink",
+        "name": "Remote Restart",
+        "props": [
+            { "p": "action", "v": "restart", "vt": "str" },
+            { "p": "payload" },
+            { "p": "topic" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "payloadType": "str",
+        "topic": "",
+        "x": 140, "y": 580,
+        "wires": [["fn_build_0x8101"]]
+    },
+
+    {
+        "id": "fn_build_0x8101",
+        "type": "function",
+        "z": "tab_solar_downlink",
+        "name": "build_0x8101",
+        "func": "// §3.9 Build Remote Restart (0x8101)\nconst { buildRestart } = global.get('decoders');\nconst imei  = msg.imei  || flow.get('imei') || \"864865083329673\";\nconst msgId = msg.msgId || 5;\nmsg.payload = buildRestart(imei, msgId);\nmsg.topic   = \"/solar/\" + imei + \"/sub\";\nnode.warn(\"Restart sent to \" + imei + \" — device will go offline briefly\");\nnode.status({ fill:\"red\", shape:\"dot\", text:\"0x8101 restart → \" + imei.slice(-6) });\nreturn msg;",
+        "outputs": 1,
+        "x": 360, "y": 580,
+        "wires": [["mqtt_out_downlink"]]
+    },
+
+    {
+        "id": "mqtt_out_downlink",
+        "type": "mqtt out",
+        "z": "tab_solar_downlink",
+        "name": "/solar/{IMEI}/sub",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "broker_mosquitto_downlink",
+        "x": 590, "y": 330,
+        "wires": []
+    },
+
+    {
+        "id": "comment_downlink_help",
+        "type": "comment",
+        "z": "tab_solar_downlink",
+        "name": "📌 §3.2 Downlink Help",
+        "info": "§3.2 Flow ส่งคำสั่ง (Downlink)\n\n⚠️ LCS-TH verified behavior:\n- 0x8007 (NJ) → ❌ ไม่ตอบ\n- 0x8100 (NJ) → ❌ ไม่ตอบ\n- 0xB4 (AC)  → ACK 11B — ไม่มี data\n- 0xC2 (AC)  → ยังไม่ทดสอบ\n\nเปลี่ยน IMEI: ตั้ง msg.imei ก่อน inject หรือ inject props → imei",
+        "x": 140, "y": 660,
+        "wires": []
     }
 ]
