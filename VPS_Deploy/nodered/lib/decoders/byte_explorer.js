@@ -16,10 +16,10 @@ function ascii(b)      { return (b >= 0x20 && b <= 0x7E) ? String.fromCharCode(b
 
 function formula_pvV(raw)      { return +(raw * 0.005592 + 1.2067).toFixed(2); }   // R²=0.99  MAE=0.17V
 function formula_ambTemp(raw)  { return +(raw * 0.064121 - 105.8627).toFixed(1); } // R²=0.82  MAE=2.8°C
-function formula_batA(stg)     { return +(stg * 0.002433 + 0.2061).toFixed(3); }  // R²=0.997 MAE=0.12A
-function formula_pvA(stg)      { return +(stg * 0.002219 + 0.1231).toFixed(3); }  // R²=0.994 MAE=0.15A
-function formula_batW(stg)     { return +(stg * 0.033327 + 2.6157).toFixed(1); }  // R²=0.996 MAE=2.0W
-function formula_pvW(stg)      { return +(stg * 0.035082 + 2.7526).toFixed(1); }  // R²=0.996 MAE=1.9W
+function formula_batA(stg)     { return +(stg / 408).toFixed(2); }                 // recalibrated 2026-06-30, error<0.01A
+function formula_pvA(stg)      { return +(stg / 540).toFixed(2); }                 // recalibrated 2026-06-30, error<0.03A
+function formula_batW(stg, batV) { return +((stg / 408) * (batV || 13.4)).toFixed(1); }  // batA × batV
+function formula_pvW(stg, pvV)  { return +((stg / 540) * (pvV || 17)).toFixed(1); }   // pvA × pvV
 
 function estimateBatV(stg, dailyWh, socVal) {
     const s = socVal || 54;
@@ -654,14 +654,14 @@ function exploreBytes(buf) {
         keyValues = {
             "PV Voltage (LE, R²=0.99)": formula_pvV(pv_le) + " V",
             "PV Voltage (BE, ÷170.7)": (u16be(buf, 14) / 170.7).toFixed(2) + " V",
-            "Ambient Temp (LE, R²=0.82)": formula_ambTemp(tmp_le) + " °C",
+            "Equip Temp (LE, R²=0.82, recal needed)": formula_ambTemp(tmp_le) + " °C",
             "Battery V (BE, ÷170.7)": (u16be(buf, 16) / 170.7).toFixed(2) + " V",
             "Battery V (LiFePO4 model)": batV + " V (MAE=0.08V)",
             "Charge Stage": stg + " (" + chargeLabel(stg, chgWh) + ")",
-            "Battery Current": formula_batA(stg) + " A",
-            "PV Current": formula_pvA(stg) + " A",
-            "Battery Power": formula_batW(stg) + " W",
-            "PV Power": formula_pvW(stg) + " W",
+            "Battery Current (stage/408)": formula_batA(stg) + " A",
+            "PV Current (stage/540)": formula_pvA(stg) + " A",
+            "Battery Power": formula_batW(stg, batV) + " W",
+            "PV Power": formula_pvW(stg, pv_le ? formula_pvV(pv_le) : 17) + " W",
             "Daily Charge": chgWh + " Wh",
             "Daily Discharge": u16le(buf, 32) + " Wh",
             "Load Current (u16LE mA)": (u16le(buf, 20) === 0 ? "0 (OFF)" : u16le(buf, 20) + " mA = " + (u16le(buf,20)/1000).toFixed(2) + "A (ON)"),
