@@ -1040,8 +1040,9 @@ equipTemp = ntc100K_3950(u16le(16))   // 🆕 NTC 100K B=3950, Rfix=100K, 12-bit
 | 4 | Recalibrate current สูตร | ✅ | batA=stage/408, pvA=stage/540 |
 | 5 | Short Packet (21B) วิเคราะห์ | ✅ | byte 13=0x10, ACK counter |
 | 6 | Deploy WEP API บน VPS | ✅ | REST control ผ่าน wep-api:8000 |
-| 7 | **หา bytes 24-31 (Battery/PV Current)** | 🔴 กำลังทำ | ต้องการ RAW+WEP คู่กัน |
-| 8 | Calibrate Temperature | ❌ | ต้องการ 3+ จุดที่รู้อุณหภูมิแน่นอน |
+| 7 | NTC 100K B=3950 formula | ✅ | Steinhart-Hart — ~3-4°C error, need exact Rfix |
+| 8 | **หา bytes 24-31 (Battery/PV Current)** | 🔴 กำลังทำ | ต้องการ RAW+WEP คู่กันหลายจุด |
+| 9 | Kick-back (Short ACK) analysis | ✅ | ON/OFF=0xEC00, Param=0xC800 |
 | 9 | หา CRC algorithm (54-55) | ❌ | ทดสอบ CRC16 variants |
 | 10 | หา bytes 34-35, 40, 42-47 | ❌ | ต้องการข้อมูลระยะยาว |
 
@@ -1091,6 +1092,39 @@ curl http://127.0.0.1:8000/api/v1/solar/njfJ4FhLDCiZzZbB2025050857732596/status
 | `VPS_Deploy/nodered/lib/decoders/*.js` | Parser modules |
 | `VPS_Deploy/wep_api/` | Python FastAPI wrapper |
 | `DEPLOY_GUIDE.md` | คู่มือ deploy VPS |
+
+---
+
+### ⚡ Short ACK (21B) — Kick-back Pattern
+
+อุปกรณ์ส่ง Short Packet (byte 13=0x10) ทันทีที่ได้รับคำสั่ง — ข้อมูล 7 bytes (14-20) เปลี่ยนตามประเภทคำสั่ง:
+
+```
+ON/OFF Kick-back:
+  14-15: 00 EC     ← status word (คงที่สำหรับ ON/OFF)
+  16-17: 00 03     ← charge stage snapshot?
+  18-19: CD B1     ← flags?
+  20:    0E-11     ← counter (increments each command)
+
+Param Push Kick-back:
+  14-15: 00 C8     ← status word (ต่างจาก ON/OFF!)
+  16-17: 00 27     ← response code?
+  18-19: 8D A1     ← flags?
+  20:    0F        ← counter
+```
+
+| คำสั่ง | Byte 14-15 | หมายเหตุ |
+|--------|-----------|----------|
+| Light ON | `00 EC` | ON accepted |
+| Light OFF | `00 EC` | OFF accepted |
+| Param Push | `00 C8` | Parameter write accepted |
+
+> **Kick-back = response code** — `0xEC00` = ON/OFF OK, `0xC800` = Param OK
+
+---
+
+*Last updated: 2026-06-30 18:40 ICT*
+*อุปกรณ์หลัก: equipment2596 (LCS-TH, IMEI 864865083329673, Serial njfJ4FhLDCiZzZbB2025050857732596)*
 
 ---
 
