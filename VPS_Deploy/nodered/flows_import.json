@@ -225,15 +225,15 @@
     {
         "id": "tab_rest_api",
         "type": "tab",
-        "label": "REST API (Real)",
+        "label": "REST API (WEP)",
         "disabled": false,
-        "info": "API จริงจากเว็บโรงงาน iot.xmnengjia.com\nToken: 3299ddc6...\nอุปกรณ์: equipment2596"
+        "info": "WEP API — http://wep-api:8000\nPython FastAPI wrapper รอบ vendor cloud\nAuto token refresh • Clean REST • พร้อม ON/OFF"
     },
     {
-        "id": "inj_detect",
+        "id": "inj_wep_status",
         "type": "inject",
         "z": "tab_rest_api",
-        "name": "📊 Refresh Status",
+        "name": "📊 Device Status",
         "props": [
             {
                 "p": "payload"
@@ -241,75 +241,75 @@
         ],
         "payloadType": "str",
         "x": 130,
-        "y": 80,
+        "y": 60,
         "wires": [
             [
-                "fn_detect"
+                "fn_wep_status"
             ]
         ]
     },
     {
-        "id": "fn_detect",
+        "id": "fn_wep_status",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Build detectionEquipment",
-        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','token':'3299ddc619954787a020260630429266'};\nmsg.payload='serial=njfJ4FhLDCiZzZbB2025050857732596&imei=864865083329673';\nmsg.url='https://iot.xmnengjia.com/api/equipment/detectionEquipment';\nnode.status({fill:'blue',shape:'dot',text:'DETECT...'});\nreturn msg;",
+        "name": "Build",
+        "func": "const s=msg.serial||'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.url='http://wep-api:8000/api/v1/solar/'+s+'/status';\nmsg.method='GET';\nnode.status({fill:'blue',shape:'dot',text:'GET status...'});\nreturn msg;",
         "outputs": 1,
-        "x": 350,
-        "y": 80,
+        "x": 320,
+        "y": 60,
         "wires": [
             [
-                "http_detect"
+                "http_wep_status"
             ]
         ]
     },
     {
-        "id": "http_detect",
+        "id": "http_wep_status",
         "type": "http request",
         "z": "tab_rest_api",
-        "name": "POST detectionEquipment",
-        "method": "POST",
+        "name": "GET /status",
+        "method": "GET",
         "ret": "obj",
         "url": "",
-        "x": 580,
-        "y": 80,
+        "x": 530,
+        "y": 60,
         "wires": [
             [
-                "fn_detect_parse"
+                "fn_wep_parse_status"
             ]
         ]
     },
     {
-        "id": "fn_detect_parse",
+        "id": "fn_wep_parse_status",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Parse Status",
-        "func": "const d=msg.payload;\nmsg.deviceStatus=d;\nif(d&&d.data) {\n  const s=d.data;\n  msg.payload={\n    batV:s.batteryVoltage||s.battery_voltage, batA:s.batteryCurrent||s.battery_circuit,\n    pvV:s.pvVoltage||s.solar_panel_voltage, pvA:s.pvCurrent||s.solar_panel_circuit,\n    loadV:s.loadVoltage||s.led_voltage, loadA:s.loadCurrent||s.led_circuit,\n    equipT:s.equipmentTemperature||s.inner_temperature, ambT:s.ambientTemperature||s.outer_temperature,\n    chg:s.chargeCapacity||s.charge_capacity, dis:s.dischargeCapacity||s.discharge_capacity,\n    online:s.isOnline||s.is_online, lighting:s.isLighting||s.is_lighting,\n    serial:s.serial||s.equipmentSerial, ts:s.timestamp\n  };\n  node.status({fill:'green',shape:'dot',text:'Bat='+(s.batteryVoltage||s.battery_voltage||'?')+'V'});\n}\nreturn msg;",
+        "name": "Parse",
+        "func": "const d=msg.payload; if(!d)return null;\nmsg.payload={bat:{v:d.battery_voltage,a_ma:d.battery_circuit,w:d.battery_power,soc:d.battery_percent},load:{v:d.led_voltage,a_ma:d.led_circuit,w:d.led_power,on:d.is_lighting},pv:{v:d.solar_panel_voltage,a_ma:d.solar_panel_circuit,w:d.solar_panel_power},temp:{equip:d.inner_temperature,amb:d.outer_temperature},energy:{chg:d.charge_capacity,dis:d.discharge_capacity},runDay:d.run_day,online:d.is_online,signal:d.signal_strength,ts:d.timestamp};\nnode.status({fill:d.is_online?'green':'red',shape:'dot',text:'Bat='+d.battery_voltage+'V SOC='+d.battery_percent+'%'});\nreturn msg;",
         "outputs": 1,
-        "x": 830,
-        "y": 80,
+        "x": 740,
+        "y": 60,
         "wires": [
             [
-                "debug_detect"
+                "debug_wep_status"
             ]
         ]
     },
     {
-        "id": "debug_detect",
+        "id": "debug_wep_status",
         "type": "debug",
         "z": "tab_rest_api",
         "name": "📊 Status",
         "active": true,
         "complete": "payload",
-        "x": 1060,
-        "y": 80,
+        "x": 950,
+        "y": 60,
         "wires": []
     },
     {
-        "id": "inj_live",
+        "id": "inj_wep_on",
         "type": "inject",
         "z": "tab_rest_api",
-        "name": "📡 Data Live",
+        "name": "💡 Light ON",
         "props": [
             {
                 "p": "payload"
@@ -317,88 +317,257 @@
         ],
         "payloadType": "str",
         "x": 130,
-        "y": 160,
+        "y": 130,
         "wires": [
             [
-                "fn_live"
+                "fn_wep_light"
             ]
         ]
     },
     {
-        "id": "fn_live",
+        "id": "inj_wep_off",
+        "type": "inject",
+        "z": "tab_rest_api",
+        "name": "🌑 Light OFF",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payloadType": "str",
+        "x": 130,
+        "y": 190,
+        "wires": [
+            [
+                "fn_wep_light_off"
+            ]
+        ]
+    },
+    {
+        "id": "inj_wep_dim",
+        "type": "inject",
+        "z": "tab_rest_api",
+        "name": "🔅 Dim 50%",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payloadType": "str",
+        "x": 130,
+        "y": 250,
+        "wires": [
+            [
+                "fn_wep_light_dim"
+            ]
+        ]
+    },
+    {
+        "id": "fn_wep_light",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Build dataLive",
-        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','token':'3299ddc619954787a020260630429266'};\nmsg.payload='id=252126';\nmsg.url='https://iot.xmnengjia.com/web/webSolar/dataLive';\nnode.status({fill:'blue',shape:'dot',text:'LIVE...'});\nreturn msg;",
+        "name": "Build ON",
+        "func": "const s=msg.serial||'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.url='http://wep-api:8000/api/v1/solar/'+s+'/light';\nmsg.method='POST';\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify({style:'on'});\nnode.status({fill:'yellow',shape:'dot',text:'ON → '+s.slice(-6)});\nreturn msg;",
         "outputs": 1,
-        "x": 350,
-        "y": 160,
+        "x": 320,
+        "y": 130,
         "wires": [
             [
-                "http_live"
+                "http_wep_light"
             ]
         ]
     },
     {
-        "id": "http_live",
+        "id": "fn_wep_light_off",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "Build OFF",
+        "func": "const s=msg.serial||'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.url='http://wep-api:8000/api/v1/solar/'+s+'/light';\nmsg.method='POST';\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify({style:'off'});\nnode.status({fill:'yellow',shape:'dot',text:'OFF → '+s.slice(-6)});\nreturn msg;",
+        "outputs": 1,
+        "x": 320,
+        "y": 190,
+        "wires": [
+            [
+                "http_wep_light"
+            ]
+        ]
+    },
+    {
+        "id": "fn_wep_light_dim",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "Build DIM 50%",
+        "func": "const s=msg.serial||'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.url='http://wep-api:8000/api/v1/solar/'+s+'/light';\nmsg.method='POST';\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify({style:'dim',power:50});\nnode.status({fill:'yellow',shape:'dot',text:'DIM 50% → '+s.slice(-6)});\nreturn msg;",
+        "outputs": 1,
+        "x": 320,
+        "y": 250,
+        "wires": [
+            [
+                "http_wep_light"
+            ]
+        ]
+    },
+    {
+        "id": "http_wep_light",
         "type": "http request",
         "z": "tab_rest_api",
-        "name": "POST dataLive",
+        "name": "POST /light",
         "method": "POST",
         "ret": "obj",
         "url": "",
-        "x": 580,
-        "y": 160,
+        "x": 530,
+        "y": 190,
         "wires": [
             [
-                "fn_live_parse"
+                "fn_wep_parse_cmd"
             ]
         ]
     },
     {
-        "id": "fn_live_parse",
+        "id": "fn_wep_parse_cmd",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Parse Live",
-        "func": "msg.payload=msg.payload;\nnode.status({fill:'green',shape:'dot',text:'Live OK'});\nreturn msg;",
+        "name": "Parse",
+        "func": "const d=msg.payload; msg.payload={ok:!!d,data:d};\nnode.status({fill:d?'green':'red',shape:'dot',text:d?'OK':'ERR'});\nreturn msg;",
         "outputs": 1,
-        "x": 830,
-        "y": 160,
+        "x": 740,
+        "y": 190,
         "wires": [
             [
-                "debug_live"
+                "debug_wep_cmd"
             ]
         ]
     },
     {
-        "id": "debug_live",
+        "id": "debug_wep_cmd",
         "type": "debug",
         "z": "tab_rest_api",
-        "name": "📡 Live Data",
+        "name": "💡 Result",
         "active": true,
         "complete": "payload",
-        "x": 1060,
-        "y": 160,
+        "x": 950,
+        "y": 190,
         "wires": []
     },
     {
-        "id": "comment_onoff",
-        "type": "comment",
+        "id": "inj_wep_refresh",
+        "type": "inject",
         "z": "tab_rest_api",
-        "name": "⚡ ON/OFF control: WebSocket เท่านั้น",
-        "info": "เว็บใช้ WebSocket สำหรับเปิด/ปิดไฟ\n→ ดู Tab WS ใน Chrome DevTools\n→ หา WS URL ตอนกด ON/OFF\n→ ส่งมาให้ แล้วผมจะเพิ่ม WebSocket node ให้",
+        "name": "🔄 Refresh",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payloadType": "str",
         "x": 130,
-        "y": 260,
+        "y": 330,
+        "wires": [
+            [
+                "fn_wep_refresh"
+            ]
+        ]
+    },
+    {
+        "id": "fn_wep_refresh",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "Build",
+        "func": "const s=msg.serial||'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.url='http://wep-api:8000/api/v1/devices/'+s+'/refresh';\nmsg.method='POST';\nmsg.headers={'Content-Type':'application/json'};\nnode.status({fill:'blue',shape:'dot',text:'REFRESH'});\nreturn msg;",
+        "outputs": 1,
+        "x": 320,
+        "y": 330,
+        "wires": [
+            [
+                "http_wep_refresh"
+            ]
+        ]
+    },
+    {
+        "id": "http_wep_refresh",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST /refresh",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 530,
+        "y": 330,
+        "wires": [
+            [
+                "fn_wep_parse_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "inj_wep_list",
+        "type": "inject",
+        "z": "tab_rest_api",
+        "name": "📋 Device List",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payloadType": "str",
+        "x": 130,
+        "y": 400,
+        "wires": [
+            [
+                "fn_wep_list"
+            ]
+        ]
+    },
+    {
+        "id": "fn_wep_list",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "Build",
+        "func": "msg.url='http://wep-api:8000/api/v1/devices';\nmsg.method='GET';\nnode.status({fill:'blue',shape:'dot',text:'GET list...'});\nreturn msg;",
+        "outputs": 1,
+        "x": 320,
+        "y": 400,
+        "wires": [
+            [
+                "http_wep_list"
+            ]
+        ]
+    },
+    {
+        "id": "http_wep_list",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "GET /devices",
+        "method": "GET",
+        "ret": "obj",
+        "url": "",
+        "x": 530,
+        "y": 400,
+        "wires": [
+            [
+                "debug_wep_list"
+            ]
+        ]
+    },
+    {
+        "id": "debug_wep_list",
+        "type": "debug",
+        "z": "tab_rest_api",
+        "name": "📋 Devices",
+        "active": true,
+        "complete": "payload",
+        "x": 740,
+        "y": 400,
         "wires": []
     },
     {
-        "id": "comment_rest_help",
+        "id": "comment_wep_help",
         "type": "comment",
         "z": "tab_rest_api",
-        "name": "📌 Endpoints จริงจากเว็บ",
-        "info": "Token: 3299ddc619954787a020260630429266\n\ndetectionEquipment → รีเฟรชสถานะ (เหมือนกด Refresh บนเว็บ)\ndataLive → ข้อมูล real-time (id=252126)\n\nON/OFF → WebSocket — กำลังหา URL",
+        "name": "📌 WEP API Endpoints",
+        "info": "Base: http://wep-api:8000\n\nGET  /api/v1/solar/{serial}/status\nPOST /api/v1/solar/{serial}/light   {style:\"on\"|\"off\"|\"dim\", power:0-100}\nPUT  /api/v1/solar/{serial}/params  {...}\nPOST /api/v1/devices/{serial}/refresh\nGET  /api/v1/devices\n\nToken auto-refresh โดย WEP API อัตโนมัติ",
         "x": 130,
-        "y": 350,
+        "y": 480,
         "wires": []
     }
 ]

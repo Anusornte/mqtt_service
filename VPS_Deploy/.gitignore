@@ -16,3 +16,4 @@ nodered/data/node_modules/
 
 # Website (created on VPS)
 website/
+__pycache__/

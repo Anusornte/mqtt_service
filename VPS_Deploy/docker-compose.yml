@@ -57,6 +57,22 @@ services:
     networks:
       - iot-net
 
+  # ===== Container 3: WEP API (Python FastAPI) =====
+  wep-api:
+    build: ./wep_api
+    container_name: wep-api
+    restart: unless-stopped
+    hostname: wep-api
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      - TZ=Asia/Bangkok
+
+    networks:
+      - iot-net
+
 networks:
   iot-net:
     driver: bridge

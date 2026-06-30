@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WEP IoT Control Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+
+    .header { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+    .header h1 { font-size: 1rem; font-weight: 600; }
+    .header .badge { background: #4361ee; color: #fff; font-size: 0.7rem; padding: 2px 8px; border-radius: 12px; }
+
+    .layout { display: grid; grid-template-columns: 1fr 360px; gap: 16px; padding: 16px; max-width: 1100px; margin: 0 auto; }
+
+    .card { background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 14px; }
+    .card-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #999; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+
+    .serial-bar { display: flex; gap: 8px; }
+    .serial-bar input { flex: 1; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: monospace; font-size: 0.8rem; background: #fafafa; }
+    .serial-bar input:focus { outline: none; border-color: #4361ee; background: #fff; }
+
+    .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 500; transition: filter .15s, transform .1s; white-space: nowrap; }
+    .btn:active { transform: scale(.97); }
+    .btn:hover { filter: brightness(.92); }
+    .btn-primary   { background: #4361ee; color: #fff; }
+    .btn-success   { background: #27ae60; color: #fff; }
+    .btn-danger    { background: #e74c3c; color: #fff; }
+    .btn-warning   { background: #e67e22; color: #fff; }
+    .btn-secondary { background: #7f8c8d; color: #fff; }
+    .btn-sm { padding: 4px 9px; font-size: 0.75rem; }
+    .btn-full { width: 100%; padding: 10px; font-size: 0.9rem; }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+
+    .dim-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f5f5f5; }
+    .dim-row label { color: #666; white-space: nowrap; }
+    .dim-row input[type=range] { flex: 1; accent-color: #e67e22; }
+    .dim-val { width: 42px; text-align: center; font-weight: 700; color: #e67e22; }
+
+    #status-card { display: none; }
+    .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .stat { background: #f8f9fa; border-radius: 7px; padding: 10px 12px; }
+    .stat .lbl { font-size: 0.72rem; color: #aaa; margin-bottom: 3px; }
+    .stat .val { font-size: 1rem; font-weight: 600; }
+    .badge-online  { display:inline-block; background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:.72rem; font-weight:700; }
+    .badge-offline { display:inline-block; background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:.72rem; font-weight:700; }
+
+    .form-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .form-row label { width: 200px; flex-shrink: 0; color: #555; line-height: 1.3; }
+    .form-row select, .form-row input[type=number] { flex: 1; padding: 6px 9px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 0.82rem; background: #fafafa; }
+    .form-row select:focus, .form-row input:focus { outline: none; border-color: #4361ee; background: #fff; }
+    .section-hr { border: none; border-top: 1px dashed #e8e8e8; margin: 14px 0; }
+
+    .time-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    .time-table th { background: #f5f6fa; padding: 7px 8px; text-align: center; font-size: .75rem; color: #888; border-bottom: 2px solid #e8e8e8; }
+    .time-table td { padding: 5px 6px; border-bottom: 1px solid #f3f3f3; text-align: center; }
+    .time-table input { width: 58px; padding: 4px 5px; border: 1px solid #ddd; border-radius: 5px; text-align: center; font-size: .82rem; }
+    .time-table input:focus { outline: none; border-color: #4361ee; }
+
+    .response-panel { position: sticky; top: 16px; }
+    .resp-meta { font-size: .72rem; color: #aaa; margin-bottom: 6px; min-height: 16px; }
+    .resp-box { background: #1e1e2e; color: #cdd6f4; border-radius: 8px; padding: 14px; font-family: 'Consolas', monospace; font-size: .78rem; min-height: 180px; max-height: 560px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.55; }
+
+    @media (max-width: 750px) { .layout { grid-template-columns: 1fr; } .response-panel { position: static; } }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>☀️ WEP IoT Control Panel</h1>
+  <span class="badge">Solar Street Light</span>
+</div>
+
+<div class="layout">
+<div>
+
+  <!-- Device -->
+  <div class="card">
+    <div class="card-title">อุปกรณ์ (Serial Number)</div>
+    <div class="serial-bar" style="margin-bottom:12px">
+      <input id="serial" type="text" value="njfJ4FhLDCiZzZbB2025050857732596" spellcheck="false">
+    </div>
+    <div class="btn-group" style="margin-bottom:10px">
+      <button class="btn btn-success"   onclick="addDevice()">➕ Add Device</button>
+      <button class="btn btn-danger btn-sm" onclick="removeDevice()" style="margin-left:auto">🗑 Remove</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary"   onclick="getStatus()">📊 ดูสถานะ</button>
+      <button class="btn btn-secondary" onclick="forceRefresh()">🔄 Force Refresh</button>
+      <button class="btn btn-secondary" onclick="forceParams()">🔃 Refresh Params</button>
+    </div>
+  </div>
+
+  <!-- Status display -->
+  <div class="card" id="status-card">
+    <div class="card-title">สถานะปัจจุบัน</div>
+    <div class="status-grid" id="status-grid"></div>
+  </div>
+
+  <!-- Light control -->
+  <div class="card">
+    <div class="card-title">💡 ควบคุมไฟ</div>
+    <div class="btn-group">
+      <button class="btn btn-success" onclick="lightCmd('on')">⚡ เปิดไฟ (ON)</button>
+      <button class="btn btn-danger"  onclick="lightCmd('off')">🌙 ปิดไฟ (OFF)</button>
+    </div>
+    <div class="dim-row">
+      <label>ปรับแสง DIM</label>
+      <input type="range" id="dimPower" min="0" max="100" value="50"
+             oninput="document.getElementById('dimVal').textContent=this.value+'%'">
+      <span class="dim-val" id="dimVal">50%</span>
+      <button class="btn btn-warning" onclick="lightCmd('dim')">ส่ง</button>
+    </div>
+  </div>
+
+  <!-- Params -->
+  <div class="card">
+    <div class="card-title">⚙️ พารามิเตอร์ระบบ</div>
+
+    <div class="form-row">
+      <label>โหมดทำงาน<br><small style="color:#aaa">workPattern</small></label>
+      <select id="p_workPattern">
+        <option value="">— ไม่เปลี่ยน —</option>
+        <option value="0">0 = ปกติ (Normal)</option>
+        <option value="1">1 = 24 ชั่วโมง</option>
+        <option value="2">2 = D2D (พระอาทิตย์ตก – เที่ยงคืน)</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label>ประเภทแบตเตอรี่<br><small style="color:#aaa">batteryType</small></label>
+      <select id="p_batteryType">
+        <option value="">— ไม่เปลี่ยน —</option>
+        <option value="0">0 = NMC</option>
+        <option value="1">1 = LFP</option>
+        <option value="2">2 = Custom</option>
+        <option value="3">3 = AGM</option>
+        <option value="4">4 = Gel</option>
+        <option value="5">5 = Flooded</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label>จำนวน Cell Series<br><small style="color:#aaa">batteryNumber</small></label>
+      <input type="number" id="p_batteryNumber" placeholder="เช่น 4" min="1">
+    </div>
+
+    <div class="form-row">
+      <label>Derating Mode<br><small style="color:#aaa">intelligent</small></label>
+      <select id="p_intelligent">
+        <option value="">— ไม่เปลี่ยน —</option>
+        <option value="0">0 = เปิด</option>
+        <option value="1">1 = ปิด</option>
+        <option value="2">2 = 365 days</option>
+      </select>
+    </div>
+
+    <hr class="section-hr">
+
+    <div class="form-row">
+      <label>แรงดัน Over-Discharge (V)<br><small style="color:#aaa">overchargeVoltage — แนะนำ 2.6</small></label>
+      <input type="number" id="p_overchargeVoltage" placeholder="2.6" step="0.1" min="0">
+    </div>
+    <div class="form-row">
+      <label>แรงดันกลับมาชาร์จ (V)<br><small style="color:#aaa">overchargeReturnVoltage</small></label>
+      <input type="number" id="p_overchargeReturnVoltage" step="0.1" min="0">
+    </div>
+    <div class="form-row">
+      <label>แรงดัน Over-Charge (V)<br><small style="color:#aaa">dischargeVoltage — แนะนำ 3.6</small></label>
+      <input type="number" id="p_dischargeVoltage" placeholder="3.6" step="0.1" min="0">
+    </div>
+    <div class="form-row">
+      <label>แรงดันกลับจาก Over-Charge (V)<br><small style="color:#aaa">dischargeReturnVoltage</small></label>
+      <input type="number" id="p_dischargeReturnVoltage" step="0.1" min="0">
+    </div>
+    <div class="form-row">
+      <label>กระแสโหลด (A)<br><small style="color:#aaa">loadCurrent</small></label>
+      <input type="number" id="p_loadCurrent" step="0.1" min="0">
+    </div>
+
+    <hr class="section-hr">
+
+    <div class="card-title" style="margin-bottom:10px">⏰ ตารางเวลาเปิดไฟ (timeBrightness) — สูงสุด 6 ช่วง</div>
+    <table class="time-table">
+      <thead>
+        <tr>
+          <th>ชั่วโมง (h)</th>
+          <th>นาที (s)</th>
+          <th>ความสว่าง % (d)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="time-rows">
+        <tr>
+          <td><input type="number" class="tb-h" min="0" max="23" value="18"></td>
+          <td><input type="number" class="tb-s" min="0" max="59" value="0"></td>
+          <td><input type="number" class="tb-d" min="0" max="100" value="100"></td>
+          <td><button class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>
+        </tr>
+        <tr>
+          <td><input type="number" class="tb-h" min="0" max="23" value="23"></td>
+          <td><input type="number" class="tb-s" min="0" max="59" value="0"></td>
+          <td><input type="number" class="tb-d" min="0" max="100" value="50"></td>
+          <td><button class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="btn-group" style="margin-bottom:16px">
+      <button class="btn btn-secondary btn-sm" onclick="addTimeRow()">＋ เพิ่มช่วงเวลา</button>
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="sendParams()">📤 ส่งพารามิเตอร์ทั้งหมด</button>
+  </div>
+
+</div>
+
+<!-- Response panel -->
+<div class="response-panel">
+  <div class="card">
+    <div class="card-title">📨 Response</div>
+    <div class="resp-meta" id="resp-meta">รอการส่งคำสั่ง</div>
+    <div class="resp-box" id="resp-box">—</div>
+  </div>
+</div>
+
+</div>
+
+<script>
+  function sn() { return document.getElementById('serial').value.trim(); }
+
+  function showResp(meta, data) {
+    document.getElementById('resp-meta').textContent = meta;
+    document.getElementById('resp-box').textContent =
+      typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+  }
+
+  async function call(method, path, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    try {
+      const r = await fetch(path, opts);
+      const text = await r.text();
+      try { return JSON.parse(text); } catch { return { raw: text }; }
+    } catch (e) { return { error: e.message }; }
+  }
+
+  async function getStatus() {
+    showResp('⏳ กำลังดึงข้อมูล...', '');
+    const d = await call('GET', `/api/v1/solar/${sn()}/status`);
+    showResp(`GET /api/v1/solar/${sn()}/status`, d);
+    renderStatus(d);
+  }
+
+  function renderStatus(d) {
+    if (!d || d.error || d.detail) return;
+    document.getElementById('status-card').style.display = 'block';
+    const online = d.is_online === 1;
+    const rows = [
+      ['สถานะเครือข่าย', online ? '<span class="badge-online">Online</span>' : '<span class="badge-offline">Offline</span>'],
+      ['ไฟ (is_lighting)', d.is_lighting === 1 ? '💡 ติด' : '🌙 ดับ'],
+      ['แบตเตอรี่', `${d.battery_percent ?? '—'} %`],
+      ['แรงดันแบต', `${d.battery_voltage ?? '—'} V`],
+      ['กำลัง Solar', `${d.solar_panel_power ?? '—'} W`],
+      ['กำลัง LED', `${d.led_power ?? '—'} W`],
+      ['อุณหภูมินอก', `${d.outer_temperature ?? '—'} °C`],
+      ['อุณหภูมิใน', `${d.inner_temperature ?? '—'} °C`],
+      ['ชาร์จสะสม', `${d.charge_capacity ?? '—'}`],
+      ['จ่ายไฟสะสม', `${d.discharge_capacity ?? '—'}`],
+      ['สัญญาณ', `${d.signal_strength ?? '—'}`],
+      ['วันที่ทำงาน', `${d.run_day ?? '—'} วัน`],
+    ];
+    document.getElementById('status-grid').innerHTML = rows.map(([l, v]) =>
+      `<div class="stat"><div class="lbl">${l}</div><div class="val">${v}</div></div>`
+    ).join('');
+  }
+
+  async function addDevice() {
+    showResp('⏳ กำลัง Add Device...', '');
+    const d = await call('POST', `/api/v1/devices/${sn()}`);
+    showResp(`POST /api/v1/devices/${sn()}  [Add Device]`, d);
+  }
+
+  async function removeDevice() {
+    if (!confirm(`ลบอุปกรณ์ ${sn()} ออกจาก account?`)) return;
+    showResp('⏳ กำลัง Remove Device...', '');
+    const d = await call('DELETE', `/api/v1/devices/${sn()}`);
+    showResp(`DELETE /api/v1/devices/${sn()}  [Remove Device]`, d);
+  }
+
+  async function forceRefresh() {
+    showResp('⏳ Force Refresh...', '');
+    const d = await call('POST', `/api/v1/devices/${sn()}/refresh`);
+    showResp(`POST /api/v1/devices/${sn()}/refresh`, d);
+  }
+
+  async function forceParams() {
+    showResp('⏳ Force Refresh Params...', '');
+    const d = await call('POST', `/api/v1/devices/${sn()}/refresh-params`);
+    showResp(`POST /api/v1/devices/${sn()}/refresh-params`, d);
+  }
+
+  async function lightCmd(style) {
+    const body = { style };
+    if (style === 'dim') body.power = parseInt(document.getElementById('dimPower').value);
+    showResp(`⏳ ส่งคำสั่ง ${style.toUpperCase()}...`, JSON.stringify(body, null, 2));
+    const d = await call('POST', `/api/v1/solar/${sn()}/light`, body);
+    showResp(`POST /api/v1/solar/${sn()}/light  [${style.toUpperCase()}]`, d);
+  }
+
+  function addTimeRow() {
+    const tbody = document.getElementById('time-rows');
+    if (tbody.rows.length >= 6) { alert('ตั้งได้สูงสุด 6 ช่วงเวลาเท่านั้น'); return; }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" class="tb-h" min="0" max="23" value="0"></td>
+      <td><input type="number" class="tb-s" min="0" max="59" value="0"></td>
+      <td><input type="number" class="tb-d" min="0" max="100" value="100"></td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>`;
+    tbody.appendChild(tr);
+  }
+
+  function removeRow(btn) {
+    const tbody = document.getElementById('time-rows');
+    if (tbody.rows.length <= 1) return;
+    btn.closest('tr').remove();
+  }
+
+  async function sendParams() {
+    const body = {};
+    for (const [key, id] of [['workPattern','p_workPattern'],['batteryType','p_batteryType'],['intelligent','p_intelligent']]) {
+      const v = document.getElementById(id).value;
+      if (v !== '') body[key] = parseInt(v);
+    }
+    for (const key of ['batteryNumber','overchargeVoltage','overchargeReturnVoltage','dischargeVoltage','dischargeReturnVoltage','loadCurrent']) {
+      const v = document.getElementById(`p_${key}`).value;
+      if (v !== '') body[key] = parseFloat(v);
+    }
+    const rows = document.querySelectorAll('#time-rows tr');
+    if (rows.length > 0) {
+      body.timeBrightness = Array.from(rows).map(row => ({
+        h: parseInt(row.querySelector('.tb-h').value),
+        s: parseInt(row.querySelector('.tb-s').value),
+        d: parseInt(row.querySelector('.tb-d').value),
+      }));
+    }
+    if (Object.keys(body).length === 0) { alert('กรุณากรอกค่าอย่างน้อย 1 พารามิเตอร์'); return; }
+    showResp('⏳ กำลังส่งพารามิเตอร์...', JSON.stringify(body, null, 2));
+    const d = await call('PUT', `/api/v1/solar/${sn()}/params`, body);
+    showResp(`PUT /api/v1/solar/${sn()}/params`, d);
+  }
+</script>
+</body>
+</html>
