@@ -906,7 +906,141 @@ module.exports = {
 
 ---
 
-## 4. ✅ Confirmed Byte Map — Calibrated 2026-06-30
+## 4. 📊 Progress Tracker — สถานะปัจจุบัน (2026-06-30)
+
+### 🎯 เป้าหมาย
+
+ถอดรหัส TI Binary Protocol 56 bytes จากอุปกรณ์ LCS-TH (IMEI `864865083329673`, equipment2596)
+— หาความหมายของทุก byte เพื่อสร้าง parser ที่สมบูรณ์
+
+### 📈 ภาพรวมความคืบหน้า
+
+```
+Confirmed:    ████████████████░░░░  24/56 bytes (43%)
+Calibrated:   ████░░░░░░░░░░░░░░░   8/56 bytes (14%)
+Unknown:      ████████████████░░░  24/56 bytes (43%)
+```
+
+### 🔬 วิธีการที่ใช้
+
+| ขั้น | วิธี | สถานะ |
+|------|------|--------|
+| 1 | ดัก MQTT `/solar/+/pub` → ดูโครงสร้าง packet | ✅ เสร็จ |
+| 2 | เทียบ RAW hex กับค่าจริงจาก REST API (Vendor Cloud) | ✅ เสร็จ — 6 จุดข้อมูล |
+| 3 | สั่ง ON/OFF ผ่านเว็บโรงงาน → diff RAW ก่อน/หลัง | ✅ เสร็จ — พบ Load Current |
+| 4 | Recalibrate สูตร Current ด้วยข้อมูลจริง | ✅ เสร็จ — batA=stage/408, pvA=stage/540 |
+| 5 | จับ Short Packet (21B) หลังคำสั่ง API | ✅ เสร็จ — byte 13=0x10 |
+| 6 | หา byte ที่เหลือ (24-31, 34-35, 46-47, 54-55) | ❌ ยังไม่ได้ทำ |
+| 7 | Calibrate Temperature formula | ❌ ยังไม่ได้ทำ |
+| 8 | หา CRC algorithm | ❌ ยังไม่ได้ทำ |
+
+### 📦 Node-RED Flow Architecture
+
+```
+┌─ Tab 1: Solar Uplink (5 nodes) ──────────────────────────┐
+│ /solar/+/pub → [parse_packet] → [msgType=0x12?]          │
+│                   │                    │                  │
+│             TI protocol        0x12 → [parse_solar] → [Debug]
+│             + Short ACK        else → drop               │
+└───────────────────────────────────────────────────────────┘
+
+┌─ Tab 2: Byte Explorer (4 nodes) ─────────────────────────┐
+│ /solar/+/pub → [explore_bytes] → [Byte Map] + [Rows]     │
+│                                    แสดงทุก byte 0-55      │
+└───────────────────────────────────────────────────────────┘
+
+┌─ Tab 3: REST API (Real) (12 nodes) ──────────────────────┐
+│ 📊 Refresh Status → detectionEquipment                   │
+│ 📡 Data Live      → dataLive                             │
+│ ⚡ ON/OFF         → WebSocket (URL ยังหาไม่เจอ)          │
+└───────────────────────────────────────────────────────────┘
+```
+
+### 🗺️ Byte Map — สิ่งที่รู้แล้ว vs ยังไม่รู้
+
+```
+✅ = CONFIRMED (เทียบ REST API แล้ว)
+△ = CALIBRATED (มีสูตรแต่ยังไม่แม่น 100%)
+❌ = UNKNOWN
+
+Off   Size  Field                       Status   Source
+───   ────  ──────────────────────────  ───────  ──────────────────
+ 0-3    4   Start Marker "TI&\x06"      ✅       fixed: 54 49 26 06
+ 2-3    2   BCD Year + Month            ✅       timestamp decode
+ 4-5    2   BCD Day + Hour              ✅       timestamp decode
+ 6-7    2   BCD Minute + Second         ✅       timestamp decode
+ 8      1   msgType (0x12=telemetry)    ✅       always 0x12
+ 9      1   Signal (signed dBm)         ✅       0xAA = -86 dBm
+10-11   2   Reserved (00 00)            ✅       always zero
+12      1   Sequence counter            △        increments each msg
+13      1   Packet Length Indicator     ✅       0x04=Full 56B, 0x10=Short 21B
+14-15   2   PV Voltage (u16 LE)         ✅       raw×0.005592+1.2067 (R²=0.99)
+16-17   2   Temperature (u16 LE)        ❌       non-linear — NTC? needs recal
+18-19   2   Load-related (u16 LE)       △        changes with ON/OFF — scale TBD
+20-21   2   Load Current (u16 LE, mA)   ✅       0=OFF, 656=ON (cloud cmd diff)
+22-23   2   Charge Stage (u16 LE)       ✅       0=idle, 512=float, 768=bulk
+24-31   8   Battery real current?       ❌       need diff at different loads
+32-33   2   Daily Discharge (u16 LE)    ✅       direct Wh
+34-35   2   Unknown                     ❌       runtime? cycle count?
+36-37   2   Daily Charge (u16 LE)       ✅       direct Wh
+38-39   2   Lamp Mode (u16 LE)          ✅       3→7 ON, 7→2 OFF (cloud cmd)
+40      1   Status byte                 ❌       TBD
+41      1   SOC / Rated Ah (raw byte)   △        54 = maybe % or Ah
+42-45   4   Status bytes                ❌       TBD
+46-47   2   Runtime? Error flags?       ❌       need monitoring over days
+48-53   6   Padding / zeros             ❌       constant
+54-55   2   CRC / Checksum              ❌       algo TBD — NOT CRC16/MODBUS
+```
+
+### 📐 สูตรที่ใช้ใน Parser ปัจจุบัน
+
+```javascript
+// PV Voltage — R²=0.99, MAE=0.17V
+pvV = raw_u16le(14) * 0.005592 + 1.2067
+
+// Battery Current — error <0.06A (recalibrated 2026-06-30)
+batA = chargeStage / 408
+
+// PV Current — error <0.03A (recalibrated 2026-06-30)
+pvA = chargeStage / 540
+
+// Battery/PV Power — computed from V×A
+batW = batA * batV
+pvW  = pvA * pvV
+
+// Battery Voltage — LiFePO4 4S chemistry model, MAE=0.08V
+batV = estimateBatV_LiFePO4(chargeStage, dailyChargeWh, socByte)
+
+// Load Current — confirmed via cloud ON/OFF diff
+loadCurrent_mA = u16le(20)  // 0=OFF, 656=ON
+
+// Temperature — ❌ BROKEN (non-linear)
+equipTemp = raw_u16le(16) * 0.064121 - 105.8627  // R²=0.82 but fails >30°C
+```
+
+### 🧪 ข้อมูลที่ใช้ Calibrate
+
+| Time | Stage | batA(REST) | batA(parser) | pvA(REST) | pvA(parser) | EquipT | AmbT |
+|------|-------|------------|--------------|-----------|--------------|--------|------|
+| 07:37 | 256 | — | 0.63 | — | 0.47 | 30 | — |
+| 09:17 | 514 | 1.25 | 1.26 | 0.97 | 0.95 | 35 | 32 |
+| 09:35 | 512 | 1.76 | 1.25* | 1.37 | 0.95* | 36 | 33 |
+| 10:05 | 768 | 1.94 | 1.88 | 1.46 | 1.42 | 38 | 35 |
+| 11:35 | 0 | 0 | 0 | 0 | 0 | 38 | 35 |
+| 12:05 | 0 | 0 | 0 | 0 | 0 | 39 | 36 |
+
+> *09:35 มี timing mismatch — stage=512 แต่ REST batA=1.76 (ควรได้ ~718)
+
+### 🔜 สิ่งที่ต้องทำต่อ
+
+| Priority | Task | Expected Finding |
+|----------|------|-----------------|
+| 🔴 P0 | หา Temperature offset จริง | อาจเป็น NTC thermistor — ต้อง 3+ จุดที่รู้อุณหภูมิแน่นอน |
+| 🔴 P0 | Diff bytes 24-31 ที่ load ต่างกัน | Battery/PV Current จริง (signed) |
+| 🟡 P1 | หา byte 34-35 | ดูว่าเพิ่มตามเวลาหรือ cycle |
+| 🟡 P1 | หา CRC algorithm (54-55) | ทดสอบ CRC16 variants, XOR, SUM |
+| 🟢 P2 | หา byte 40, 42-45 | Status/error flags |
+| 🟢 P2 | หา byte 46-47 | Runtime hours? |
 
 > Cross-referenced against REST API (`xmnengjia.com/sdLamp/api/external/deviceStatus`)  
 > Test: ON/OFF cloud command → diff analysis  
