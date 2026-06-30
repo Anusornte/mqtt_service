@@ -270,87 +270,10 @@
         "type": "tab",
         "label": "REST API",
         "disabled": false,
-        "info": "ส่งคำสั่งผ่าน REST API xmnengjia.com → vendor cloud → device (4G)\nUser: anusorn / 123456\nอุปกรณ์: equipment2596"
+        "info": "กดปุ่มเดียวจบ — ขอ token + ส่งคำสั่งอัตโนมัติ\nUser: anusorn / 123456\nอุปกรณ์: equipment2596"
     },
     {
-        "id": "inj_rest_token",
-        "type": "inject",
-        "z": "tab_rest_api",
-        "name": "🔑 Get Token",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "payload": "get_token",
-        "payloadType": "str",
-        "x": 130,
-        "y": 60,
-        "wires": [
-            [
-                "fn_rest_token"
-            ]
-        ]
-    },
-    {
-        "id": "fn_rest_token",
-        "type": "function",
-        "z": "tab_rest_api",
-        "name": "Build Token",
-        "func": "msg.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };\nmsg.payload = 'username=anusorn&password=123456';\nmsg.url = 'http://xmnengjia.com/sdLamp/api/external/accessToken';\nnode.status({fill:'blue',shape:'dot',text:'GET TOKEN...'});\nreturn msg;",
-        "outputs": 1,
-        "x": 330,
-        "y": 60,
-        "wires": [
-            [
-                "http_rest_token"
-            ]
-        ]
-    },
-    {
-        "id": "http_rest_token",
-        "type": "http request",
-        "z": "tab_rest_api",
-        "name": "POST /accessToken",
-        "method": "POST",
-        "ret": "obj",
-        "url": "",
-        "x": 530,
-        "y": 60,
-        "wires": [
-            [
-                "fn_store_token"
-            ]
-        ]
-    },
-    {
-        "id": "fn_store_token",
-        "type": "function",
-        "z": "tab_rest_api",
-        "name": "Store Token",
-        "func": "const d = msg.payload;\nif (d && d.code === 1000 && d.data) {\n    flow.set('restToken', d.data);\n    msg.token = d.data;\n    node.status({fill:'green',shape:'dot',text:'Token: ' + d.data.slice(0,8) + '...'});\n} else {\n    node.status({fill:'red',shape:'ring',text:'FAIL: ' + (d?.code||'?')});\n}\nreturn msg;",
-        "outputs": 1,
-        "x": 730,
-        "y": 60,
-        "wires": [
-            [
-                "debug_rest_token"
-            ]
-        ]
-    },
-    {
-        "id": "debug_rest_token",
-        "type": "debug",
-        "z": "tab_rest_api",
-        "name": "Token",
-        "active": true,
-        "complete": "true",
-        "x": 930,
-        "y": 60,
-        "wires": []
-    },
-    {
-        "id": "inj_rest_status",
+        "id": "inj_status",
         "type": "inject",
         "z": "tab_rest_api",
         "name": "📊 Device Status",
@@ -359,235 +282,353 @@
                 "p": "payload"
             }
         ],
+        "payload": "status",
         "payloadType": "str",
         "x": 130,
-        "y": 130,
+        "y": 80,
         "wires": [
             [
-                "fn_rest_status"
+                "fn_status_step1"
             ]
         ]
     },
     {
-        "id": "fn_rest_status",
+        "id": "fn_status_step1",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Build Status",
-        "func": "const token = msg.token || flow.get('restToken');\nif (!token) { node.warn('No token — click Get Token first'); return null; }\nconst serial = msg.serial || 'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.headers = {'Content-Type':'application/json'};\nmsg.payload = JSON.stringify({accessToken: token, serial: serial});\nmsg.url = 'http://xmnengjia.com/sdLamp/api/external/deviceStatus';\nnode.status({fill:'blue',shape:'dot',text:'Status: ' + serial.slice(0,10) + '...'});\nreturn msg;",
+        "name": "① Get Token",
+        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded'};\nmsg.payload='username=anusorn&password=123456';\nmsg.url='http://xmnengjia.com/sdLamp/api/external/accessToken';\nmsg._next='status';\nreturn msg;",
         "outputs": 1,
         "x": 330,
-        "y": 130,
+        "y": 80,
         "wires": [
             [
-                "http_rest_status"
+                "http_status_token"
             ]
         ]
     },
     {
-        "id": "http_rest_status",
+        "id": "http_status_token",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST token",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 530,
+        "y": 80,
+        "wires": [
+            [
+                "fn_status_step2"
+            ]
+        ]
+    },
+    {
+        "id": "fn_status_step2",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "② Build Status",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){node.warn('Token fail');return null;}\nconst tk=d.data;\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify({accessToken:tk,serial:'njfJ4FhLDCiZzZbB2025050857732596'});\nmsg.url='http://xmnengjia.com/sdLamp/api/external/deviceStatus';\nreturn msg;",
+        "outputs": 1,
+        "x": 730,
+        "y": 80,
+        "wires": [
+            [
+                "http_status_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "http_status_cmd",
         "type": "http request",
         "z": "tab_rest_api",
         "name": "POST /deviceStatus",
         "method": "POST",
         "ret": "obj",
         "url": "",
-        "x": 530,
-        "y": 130,
+        "x": 930,
+        "y": 80,
         "wires": [
             [
-                "fn_parse_status"
+                "fn_status_parse"
             ]
         ]
     },
     {
-        "id": "fn_parse_status",
+        "id": "fn_status_parse",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Parse Status",
-        "func": "const d = msg.payload;\nif (!d || d.code !== 1000) { node.warn('Status err: '+(d?.code||'?')); return msg; }\nconst s = d.data;\nmsg.deviceStatus = {\n    online: s.is_online, signal: s.signal_strength, lighting: s.is_lighting,\n    batV: s.battery_voltage, batA_mA: s.battery_circuit, batW: s.battery_power, batSOC: s.battery_percent,\n    loadV: s.led_voltage, loadA_mA: s.led_circuit, loadW: s.led_power,\n    pvV: s.solar_panel_voltage, pvA_mA: s.solar_panel_circuit, pvW: s.solar_panel_power,\n    equipT: s.inner_temperature, ambT: s.outer_temperature,\n    chg: s.charge_capacity, dis: s.discharge_capacity, runDay: s.run_day,\n    updateTime: s.timestamp\n};\nmsg.payload = msg.deviceStatus;\nnode.status({fill:'green',shape:'dot',text:'Bat=' + s.battery_voltage + 'V PV=' + s.solar_panel_voltage + 'V'});\nreturn msg;",
+        "name": "③ Parse",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){msg.payload={error:d?.code||'no resp'};return msg;}\nconst s=d.data;\nmsg.payload={batV:s.battery_voltage,batA_mA:s.battery_circuit,batW:s.battery_power,batSOC:s.battery_percent,loadV:s.led_voltage,loadA_mA:s.led_circuit,loadW:s.led_power,pvV:s.solar_panel_voltage,pvA_mA:s.solar_panel_circuit,pvW:s.solar_panel_power,equipT:s.inner_temperature,ambT:s.outer_temperature,chg:s.charge_capacity,dis:s.discharge_capacity,lighting:s.is_lighting,online:s.is_online,signal:s.signal_strength,ts:s.timestamp};\nnode.status({fill:'green',shape:'dot',text:'Bat='+s.battery_voltage+'V PV='+s.solar_panel_voltage+'V'});\nreturn msg;",
         "outputs": 1,
-        "x": 730,
-        "y": 130,
+        "x": 1130,
+        "y": 80,
         "wires": [
             [
-                "debug_rest_status"
+                "debug_status"
             ]
         ]
     },
     {
-        "id": "debug_rest_status",
+        "id": "debug_status",
         "type": "debug",
         "z": "tab_rest_api",
-        "name": "Status",
+        "name": "📊 Status",
         "active": true,
         "complete": "payload",
-        "x": 930,
-        "y": 130,
+        "x": 1330,
+        "y": 80,
         "wires": []
     },
     {
-        "id": "inj_rest_on",
+        "id": "inj_on",
         "type": "inject",
         "z": "tab_rest_api",
         "name": "💡 Light ON",
         "props": [
             {
-                "p": "style",
-                "v": "on",
-                "vt": "str"
-            },
-            {
                 "p": "payload"
             }
         ],
+        "payload": "on",
         "payloadType": "str",
         "x": 130,
-        "y": 210,
+        "y": 160,
         "wires": [
             [
-                "fn_rest_light"
+                "fn_light_step1"
             ]
         ]
     },
     {
-        "id": "inj_rest_off",
-        "type": "inject",
-        "z": "tab_rest_api",
-        "name": "🌑 Light OFF",
-        "props": [
-            {
-                "p": "style",
-                "v": "off",
-                "vt": "str"
-            },
-            {
-                "p": "payload"
-            }
-        ],
-        "payloadType": "str",
-        "x": 130,
-        "y": 270,
-        "wires": [
-            [
-                "fn_rest_light"
-            ]
-        ]
-    },
-    {
-        "id": "inj_rest_refresh",
-        "type": "inject",
-        "z": "tab_rest_api",
-        "name": "🔄 Refresh Device",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "payloadType": "str",
-        "x": 130,
-        "y": 340,
-        "wires": [
-            [
-                "fn_rest_refresh"
-            ]
-        ]
-    },
-    {
-        "id": "fn_rest_refresh",
+        "id": "fn_light_step1",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Build Refresh",
-        "func": "const token = msg.token || flow.get('restToken');\nif (!token) { node.warn('No token'); return null; }\nconst serial = msg.serial || 'njfJ4FhLDCiZzZbB2025050857732596';\nmsg.headers = {'Content-Type':'application/json'};\nmsg.payload = JSON.stringify({accessToken: token, serial: serial});\nmsg.url = 'http://xmnengjia.com/sdLamp/api/external/updateStatus';\nnode.status({fill:'blue',shape:'dot',text:'Refresh: ' + serial.slice(0,10)});\nreturn msg;",
+        "name": "① Get Token",
+        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded'};\nmsg.payload='username=anusorn&password=123456';\nmsg.url='http://xmnengjia.com/sdLamp/api/external/accessToken';\nmsg._style='on';\nreturn msg;",
         "outputs": 1,
         "x": 330,
-        "y": 340,
+        "y": 160,
         "wires": [
             [
-                "http_rest_refresh"
+                "http_light_token"
             ]
         ]
     },
     {
-        "id": "http_rest_refresh",
+        "id": "http_light_token",
         "type": "http request",
         "z": "tab_rest_api",
-        "name": "POST /updateStatus",
+        "name": "POST token",
         "method": "POST",
         "ret": "obj",
         "url": "",
         "x": 530,
-        "y": 340,
+        "y": 160,
         "wires": [
             [
-                "fn_rest_response"
+                "fn_light_step2"
             ]
         ]
     },
     {
-        "id": "fn_rest_light",
+        "id": "fn_light_step2",
         "type": "function",
         "z": "tab_rest_api",
-        "name": "Build Light",
-        "func": "const token = msg.token || flow.get('restToken');\nif (!token) { node.warn('No token'); return null; }\nconst serial = msg.serial || 'njfJ4FhLDCiZzZbB2025050857732596';\nconst style = msg.style || 'on';\nconst body = {accessToken: token, serial, style};\nif (style === 'dim') body.power = Math.max(0, Math.min(100, msg.power || 50));\nmsg.headers = {'Content-Type':'application/json'};\nmsg.payload = JSON.stringify(body);\nmsg.url = 'http://xmnengjia.com/sdLamp/api/external/adjustLight';\nnode.status({fill:'yellow',shape:'dot',text: style.toUpperCase() + ' → ' + serial.slice(-6)});\nreturn msg;",
+        "name": "② Build Light",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){node.warn('Token fail');return null;}\nconst tk=d.data, style=msg._style||'on';\nmsg.headers={'Content-Type':'application/json'};\nconst body={accessToken:tk,serial:'njfJ4FhLDCiZzZbB2025050857732596',style};\nif(style==='dim')body.power=Math.max(0,Math.min(100,msg.power||50));\nmsg.payload=JSON.stringify(body);\nmsg.url='http://xmnengjia.com/sdLamp/api/external/adjustLight';\nnode.status({fill:'yellow',shape:'dot',text:style.toUpperCase()});\nreturn msg;",
         "outputs": 1,
-        "x": 330,
-        "y": 240,
+        "x": 730,
+        "y": 160,
         "wires": [
             [
-                "http_rest_light"
+                "http_light_cmd"
             ]
         ]
     },
     {
-        "id": "http_rest_light",
+        "id": "http_light_cmd",
         "type": "http request",
         "z": "tab_rest_api",
         "name": "POST /adjustLight",
         "method": "POST",
         "ret": "obj",
         "url": "",
+        "x": 930,
+        "y": 160,
+        "wires": [
+            [
+                "fn_light_parse"
+            ]
+        ]
+    },
+    {
+        "id": "fn_light_parse",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "③ Parse",
+        "func": "const d=msg.payload; const OK=[1000,1001,10000];\nmsg.payload={ok:!!d&&OK.includes(d.code),code:d?.code,msg:d?.msg||'?'};\nnode.status({fill:msg.payload.ok?'green':'red',shape:'dot',text:msg.payload.ok?'OK':'ERR '+d?.code});\nreturn msg;",
+        "outputs": 1,
+        "x": 1130,
+        "y": 160,
+        "wires": [
+            [
+                "debug_light"
+            ]
+        ]
+    },
+    {
+        "id": "debug_light",
+        "type": "debug",
+        "z": "tab_rest_api",
+        "name": "💡 Result",
+        "active": true,
+        "complete": "payload",
+        "x": 1330,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "inj_off",
+        "type": "inject",
+        "z": "tab_rest_api",
+        "name": "🌑 Light OFF",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payload": "off",
+        "payloadType": "str",
+        "x": 130,
+        "y": 240,
+        "wires": [
+            [
+                "fn_off_step1"
+            ]
+        ]
+    },
+    {
+        "id": "fn_off_step1",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "① Get Token",
+        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded'};\nmsg.payload='username=anusorn&password=123456';\nmsg.url='http://xmnengjia.com/sdLamp/api/external/accessToken';\nmsg._style='off';\nreturn msg;",
+        "outputs": 1,
+        "x": 330,
+        "y": 240,
+        "wires": [
+            [
+                "http_off_token"
+            ]
+        ]
+    },
+    {
+        "id": "http_off_token",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST token",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
         "x": 530,
         "y": 240,
         "wires": [
             [
-                "fn_rest_response"
+                "fn_light_step2"
             ]
         ]
     },
     {
-        "id": "fn_rest_response",
-        "type": "function",
+        "id": "inj_refresh",
+        "type": "inject",
         "z": "tab_rest_api",
-        "name": "Parse Response",
-        "func": "const d = msg.payload;\nconst OK = [1000, 1001, 10000];\nif (!d) { msg.ok = false; msg.err = 'no response'; }\nelse if (OK.includes(d.code)) { msg.ok = true; msg.msg = d.msg || 'OK'; }\nelse { msg.ok = false; msg.err = d.msg || ('code ' + d.code); }\nmsg.cmdTime = new Date().toISOString();\nnode.status({fill: msg.ok?'green':'red', shape:'dot', text: msg.ok?'OK':'ERR: '+msg.err});\nreturn msg;",
-        "outputs": 1,
-        "x": 730,
-        "y": 240,
+        "name": "🔄 Refresh",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "payload": "refresh",
+        "payloadType": "str",
+        "x": 130,
+        "y": 320,
         "wires": [
             [
-                "debug_rest_cmd"
+                "fn_refresh_step1"
             ]
         ]
     },
     {
-        "id": "debug_rest_cmd",
-        "type": "debug",
+        "id": "fn_refresh_step1",
+        "type": "function",
         "z": "tab_rest_api",
-        "name": "Cmd Result",
-        "active": true,
-        "complete": "true",
-        "x": 930,
-        "y": 240,
-        "wires": []
+        "name": "① Get Token",
+        "func": "msg.headers={'Content-Type':'application/x-www-form-urlencoded'};\nmsg.payload='username=anusorn&password=123456';\nmsg.url='http://xmnengjia.com/sdLamp/api/external/accessToken';\nmsg._cmd='refresh';\nreturn msg;",
+        "outputs": 1,
+        "x": 330,
+        "y": 320,
+        "wires": [
+            [
+                "http_refresh_token"
+            ]
+        ]
     },
     {
-        "id": "comment_rest_help",
+        "id": "http_refresh_token",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST token",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 530,
+        "y": 320,
+        "wires": [
+            [
+                "fn_refresh_step2"
+            ]
+        ]
+    },
+    {
+        "id": "fn_refresh_step2",
+        "type": "function",
+        "z": "tab_rest_api",
+        "name": "② Build Refresh",
+        "func": "const d=msg.payload; if(!d||d.code!==1000){node.warn('Token fail');return null;}\nconst tk=d.data;\nmsg.headers={'Content-Type':'application/json'};\nmsg.payload=JSON.stringify({accessToken:tk,serial:'njfJ4FhLDCiZzZbB2025050857732596'});\nmsg.url='http://xmnengjia.com/sdLamp/api/external/updateStatus';\nnode.status({fill:'blue',shape:'dot',text:'REFRESH'});\nreturn msg;",
+        "outputs": 1,
+        "x": 730,
+        "y": 320,
+        "wires": [
+            [
+                "http_refresh_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "http_refresh_cmd",
+        "type": "http request",
+        "z": "tab_rest_api",
+        "name": "POST /updateStatus",
+        "method": "POST",
+        "ret": "obj",
+        "url": "",
+        "x": 930,
+        "y": 320,
+        "wires": [
+            [
+                "fn_light_parse"
+            ]
+        ]
+    },
+    {
+        "id": "comment_rest",
         "type": "comment",
         "z": "tab_rest_api",
-        "name": "📌 วิธีใช้",
-        "info": "1. กด 🔑 Get Token ก่อนทุกครั้ง (token หมดอายุใน ~24ชม)\n2. กด 📊 Device Status ดูค่าปัจจุบัน\n3. กด ON/OFF เพื่อส่งคำสั่ง → ดู RAW byte เปลี่ยนใน Tab Solar Uplink\n4. กด 🔄 Refresh เพื่อให้อุปกรณ์ส่งข้อมูลทันที",
+        "name": "📌 กดปุ่มเดียว — ขอ Token + ส่งคำสั่งอัตโนมัติ",
+        "info": "อุปกรณ์: equipment2596 (864865083329673)\nแต่ละปุ่ม: ① ขอ token → ② ส่งคำสั่ง → ③ แสดงผล\nRate limit: ≤100 calls/24h/device",
         "x": 130,
-        "y": 430,
+        "y": 400,
         "wires": []
     }
 ]
